@@ -1,0 +1,2239 @@
+%Planning to understand/simplify/improve. If you are interested, please contact me (Evangelos Kipouridis), I would be more than happy to do that collaboratively.
+%Licensed under CC BY 4.0
+\documentclass[11pt]{article}
+\usepackage[T1]{fontenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm,mathtools,booktabs,enumitem,microtype}
+\microtypesetup{expansion=false}
+\usepackage[hidelinks]{hyperref}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{remark}[theorem]{Remark}
+\newcommand{\E}{\mathbb E}
+\newcommand{\Prb}{\mathbb P}
+\newcommand{\ind}{\mathbf 1}
+\newcommand{\OPT}{\operatorname{OPT}}
+\newcommand{\cost}{\operatorname{cost}}
+\newcommand{\wt}{\widetilde}
+\newcommand{\Part}{\mathcal P}
+\newcommand{\join}{\chi}
+\newcommand{\cut}{\partial}
+\newcommand{\pos}[1]{(#1)_+}
+\DeclareMathOperator{\diag}{diag}
+\DeclareMathOperator{\MSF}{MSF}
+\title{Algorithms for Ultrametric Fitting\\
+\large Offline Algorithms and One-Pass Algorithms}
+\author{}
+\date{29 October 2026}
+\begin{document}
+\maketitle
+
+\begin{abstract}
+An ultrametric is a symmetric nonnegative function with zero diagonal whose value on any pair
+is at most the maximum of its values on the other two pairs in any triple.
+Given nonnegative distances on all pairs of $n$ vertices, we fit an
+ultrametric by minimizing either the sum of absolute errors or the square
+root of the sum of squared errors. We give four algorithm families:
+offline and one-pass algorithms for each objective. For absolute error,
+the offline approximation factors are $O(\log^2 n)$ in
+$\widetilde O(n^{10})$ time and $O(\log^5 n)$ in
+$\widetilde O(n^2)$ time. The one-pass approximation factors are
+$O(\log^3 n)$ with polynomial postprocessing and $O(\log^5 n)$ with
+$\widetilde O(n^2)$ postprocessing. For the square root of squared error,
+both approximation factors are $O(\log^4 n)$; the offline time is
+$\widetilde O(n^2)$ and the one-pass postprocessing time is
+$\widetilde O(n^3)$. Each one-pass algorithm stores
+$\widetilde O(n)$ words of $O(\log n)$ bits. An offline algorithm may
+access any input pair; a one-pass algorithm reads every input pair once,
+in an arbitrary fixed order. The notation $\widetilde O$ suppresses powers
+of $\log(n+1)$. The computational
+assumptions and success probabilities are specified in the text.
+\end{abstract}
+
+\section{Definitions and main theorem}
+\label{sec:definitions}
+
+For a finite set $X$, let $\binom X2$ denote the set of its two-element
+subsets. All sums indexed by $xy\in\binom X2$ count an unordered pair once.
+Within a specified ambient set $X$, a sum indexed only by $xy$ means a
+sum over $\binom X2$. The ambient set is $V$ unless a state specifies $X$. Every finite indexing set has a fixed total order; newly created atoms receive consecutive identifiers. Ties in minimization are resolved by the resulting lexicographic order unless another rule is specified.
+Let $n\ge2$, let $V=\{1,\ldots,n\}$, and let
+$d:\binom V2\to\mathbb R_{\ge0}$. Extend $d$ symmetrically to $V^2$ and
+put $d_{xx}=0$. Set $M=\max_{xy\in\binom V2}d_{xy}$.
+For a statement $A$, $\ind[A]$ is one if $A$ holds and zero otherwise.
+For a real number $z$, $z_+=\max\{z,0\}$.
+The notation $\log$ denotes the natural logarithm; $\log_2$ denotes the
+base-two logarithm. We write $\Prb$ for probability and $\E$ for
+expectation. A subscript specifies the random variable being averaged
+when it is not clear from the expression.
+
+An \emph{ultrametric} on $X$ is a symmetric map $u:X^2\to\mathbb R_{\ge0}$
+such that $u_{xx}=0$ and
+\[
+ u_{xy}\le\max\{u_{xz},u_{zy}\}\qquad(x,y,z\in X).
+\]
+Zero distance between distinct elements is permitted. Define
+\begin{align*}
+ L_1(d,u)&=\sum_{xy\in\binom V2}|d_{xy}-u_{xy}|,\\
+ L_2(d,u)&=\sum_{xy\in\binom V2}(d_{xy}-u_{xy})^2,\\
+ \OPT_p&=\min_{u\text{ ultrametric}}L_p(d,u)\qquad(p=1,2).
+\end{align*}
+An $r$-approximation for $L_p$, where $r\ge1$, is an output ultrametric
+$u$ satisfying $L_p(d,u)\le r\OPT_p$. For symmetric matrices $A,B$ on
+the same ordered vertex set, define
+$\|A-B\|_2=(\sum_{x<y}(A_{xy}-B_{xy})^2)^{1/2}$.
+The $\ell_2$ norm error is $L_2(d,u)^{1/2}$. An $r$-approximation for
+$L_2$ is therefore an $r^{1/2}$-approximation for the norm error.
+Replacing every entry of $u$ by $\min\{u_{xy},M\}$ preserves the
+ultrametric inequalities and cannot increase either objective. The feasible
+set in $[0,M]^{\binom n2}$ is closed and bounded, so each minimum exists.
+The height-$M$ ultrametric has off-diagonal entries $M$ and diagonal entries zero. If $M=0$, the zero ultrametric is an exact answer. Henceforth $M>0$.
+
+A \emph{partition} of $X$ is a set of nonempty disjoint subsets whose union
+is $X$. Its elements are its \emph{blocks}. For a partition $P$, $P(x)$ is
+the block containing $x$ and $\join_P(x,y)=\ind[P(x)=P(y)]$.
+$P$ \emph{refines} $Q$ when every block of $P$ is contained in a block of
+$Q$. A sequence is \emph{nested} when each partition refines every later
+partition. For $t\ge0$, the threshold partition $P_u(t)$ of an ultrametric $u$ is defined
+by $\join_{P_u(t)}(x,y)=\ind[u_{xy}\le t]$.
+
+A \emph{hierarchy representation} of $u$ is a rooted tree whose leaves are
+$X$, with each internal vertex assigned a nonnegative height, heights
+nondecreasing towards the root, and $u_{xy}$ equal to the height of the
+lowest common ancestor of $x,y$. The lowest common ancestor is the common
+ancestor farthest from the root. Suppress internal vertices with one child.
+The representation then has at most $2|X|-1$ vertices. Every ultrametric has
+such a representation: adjoin all singleton sets to the family of its
+threshold blocks. Two sets in this family are disjoint or one contains
+the other. Connect each nonroot set to its least strict superset, and
+assign each nonsingleton set the first threshold at which it is a block.
+Assign singleton leaves height zero. This also represents distinct
+vertices at distance zero, whose common ancestor has height zero. Equal-height internal
+vertices may be inserted without changing $u$. All algorithms output a
+hierarchy representation, rather than its quadratic table of pair distances.
+
+An \emph{offline algorithm} has random access to the input table.
+A \emph{one-pass algorithm} reads one record $(x,y,d_{xy})$ for each
+$xy\in\binom V2$, in an arbitrary fixed order independent of its randomness,
+and cannot read a record again. Its \emph{postprocessing} is its computation
+after the last record. Space includes postprocessing space and the output.
+The vertex set is known before the pass. An input prefix is the first
+$j$ records for some $j\ge0$. An update is the computation performed
+when one record arrives; total update time sums these times over the pass.
+
+Time bounds count word operations. For these bounds, input distances are
+nonnegative integers at most $n^b$, for a fixed constant $b$; a common scaling
+of all distances is allowed. A word has $O(\log n)$ bits. Numbers occupying
+a polylogarithmic number of words are processed in a polylogarithmic number
+of word operations. The notation $\wt O(f(n))$ means
+$O(f(n)\log^c(n+1))$ for some constant $c$. A probability bound holds
+\emph{with high probability} if, for every fixed $a>0$, its failure
+probability can be made at most $n^{-a}$ by changing constants in the
+algorithm. Unless expressly stated otherwise, all random choices described
+as fresh are independent of the previous choices, conditional on the current
+input to that step. The word \emph{combinatorial} here means that the
+algorithm uses arithmetic, comparison, sampling, graph searches, and finite
+dynamic programming, without a linear-programming, semidefinite-programming,
+or numerical linear-system subroutine. The faster cut subroutines below are
+not asserted to be combinatorial.
+We call a quantity polynomially bounded if it is at most $n^c$ for a
+fixed constant $c$, and polylogarithmically bounded if it is at most
+$\log^c(n+1)$ for a fixed constant $c$. ``Near-linear time'' on a graph
+with $N$ vertices and $m$ edges means $\widetilde O(N+m)$ time, with
+logarithmic factors measured against the original input size $n$.
+
+\begin{theorem}[The four algorithm families]\label{thm:four}
+For complete, unweighted input pairs, the following randomized algorithms
+return the indicated approximation with high probability.
+The four families are offline $L_1$, one-pass $L_1$, offline $L_2$, and
+one-pass $L_2$. The first two families each have two implementations.
+An unweighted input pair has coefficient one in each objective.
+\begin{center}
+\small
+\begin{tabular}{@{}llll@{}}\toprule
+Objective and model & Approximation & Time & Space\\\midrule
+$L_1$, combinatorial offline & $O(\log^2 n)$ & $\wt O(n^{10})$ & polynomial\\
+$L_1$, faster offline & $O(\log^5 n)$ & $\wt O(n^2)$ & $\wt O(n^2)$\\
+$L_1$, combinatorial one pass & $O(\log^3 n)$ & polynomial & $\wt O(n)$\\
+$L_1$, faster one pass & $O(\log^5 n)$ & $\wt O(n^2)$ & $\wt O(n)$\\
+$L_2$, offline & $O(\log^8 n)$ & $\wt O(n^2)$ & $\wt O(n^2)$\\
+$L_2$, one pass & $O(\log^8 n)$ & $\wt O(n^3)$ & $\wt O(n)$\\\bottomrule
+\end{tabular}
+\end{center}
+For the faster $L_1$ one-pass algorithm, both total update time and
+postprocessing time are $\wt O(n^2)$. For the $L_2$ one-pass algorithm,
+total update time is $\wt O(n^2)$ and postprocessing time is $\wt O(n^3)$.
+The last two approximation factors are $O(\log^4 n)$ for the norm error.
+The faster bounds use the capacitated cut algorithms stated in
+Section~\ref{sec:primitives}. The proofs of the reductions to those
+algorithms are given in full below.
+\end{theorem}
+
+\section{Graph algorithms used as external results}
+\label{sec:primitives}
+
+A graph in this paper is finite and undirected. Parallel edges are permitted.
+An edge capacity is nonnegative. Self-loops may be deleted. For
+$J=(Y,E,c)$ and $S\subseteq Y$, put
+\[
+ \cut_J S=\{xy\in E:|\{x,y\}\cap S|=1\},\qquad
+ c_J(\cut S)=\sum_{e\in\cut_J S}c_e.
+\]
+For $q:Y\to\mathbb Z_{\ge0}$, write $q(S)=\sum_{x\in S}q_x$.
+A cut is \emph{pinned} at $s,t$ if $s\in S$ and $t\notin S$. For $q(Y)=N$, call $S$ \emph{narrow-balanced} if $N/3\le q(S)\le2N/3$ and \emph{wide-balanced} if $N/8\le q(S)\le7N/8$.
+Contracting a vertex set means replacing it by one vertex, adding capacities
+of parallel edges and deleting self-loops. Sum $q$ over the contracted set.
+A vertex measure is a function assigning a nonnegative real number to each
+vertex. For any vertex measure $q$, the notation $q(S)$ has the same
+sum meaning as above. The induced subgraph $J[Z]$, for $Z\subseteq Y$,
+retains the vertices of $Z$ and all edges with both endpoints in $Z$.
+The minimum cut value of a graph with at least two vertices is the least
+capacity of a cut with both sides nonempty. A cut sparsifier with error
+$\eta$ is a graph on the same vertices whose capacity on every cut is
+between $1-\eta$ and $1+\eta$ times the original capacity. The word
+compression will mean replacing a graph by such a graph. A terminal in a
+tree is one of the designated leaves corresponding to vertices of the
+original graph; all other tree vertices are auxiliary vertices. A clique
+on a vertex set contains one edge for each pair of distinct vertices.
+
+\begin{theorem}[External cut algorithms]\label{thm:external}
+We use the following results, with inverse-polynomial failure probability.
+\begin{enumerate}[label=(\alph*)]
+\item \label{ext:tree}
+For a graph $J$ on $N$ vertices with $m$ edges, a combinatorial algorithm
+constructs a distribution of capacitated trees with $O(N)$ vertices and
+leaves $Y$. For a tree $T$, define
+\[
+ c_T(S)=\min\{c_T(\cut_T Z):Z\subseteq V(T),\ Z\cap Y=S\}.
+\]
+Every tree in the distribution satisfies $c_J(\cut S)\le c_T(S)$, and
+$\E_Tc_T(S)\le\beta(N)c_J(\cut S)$ for each $S\subseteq Y$, where
+$\beta(N)=O(\log(N+1))$. A conservative construction time is
+$\wt O(N(N+m)^2)$. This is the cut consequence of R\"acke's
+Theorems 2 and 4 and Lemmas 7 and 8~\cite{Racke08}, using
+the metric-tree construction of~\cite{FRT04}.
+\item \label{ext:ed}
+For a capacitated graph and a vertex measure $q$, a near-linear-time
+algorithm, given $\phi>0$, partitions $Y$ into sets $Y_i$ such that
+every $J[Y_i]$ satisfies
+\[
+ c_{J[Y_i]}(\cut S)\ge a_0\phi\min\{q(S),q(Y_i\setminus S)\}
+ \quad(S\subseteq Y_i),
+\]
+and the capacity of edges between sets is at most
+$C_0\phi q(Y)\log^2(N+1)$. Here $a_0,C_0>0$ are absolute constants.
+Zero values of $q$ are allowed, and its positive values lie between inverse
+polynomial and polynomial bounds. This is Theorem 3.2
+of Agassy--Dorfman--Kaplan~\cite{ADK25}, with its weighted-graph conventions.
+\item \label{ext:st}
+A pinned cut of capacity at most twice the minimum pinned capacity is
+computable in $\wt O(N+m)$ time. We use Theorem 1.3
+of Li--Nanongkai--Panigrahi--Saranurak~\cite{LNPS23} with constant accuracy.
+\item \label{ext:bk}
+For $0<\eta<1/2$, a capacitated graph can be replaced, in
+$\wt O(N+m)$ time for inverse-polylogarithmic $\eta$, by a graph on the same
+vertices with $\wt O(N)$ edges such that all cut capacities change by factors
+in $[1-\eta,1+\eta]$. We use Bencz\'ur--Karger~\cite{BK15},
+Theorems 6.4--6.5. Its sampling theorem also implies: in an unweighted
+multigraph, independently retaining edge $e$ with probability
+$p_e\ge\min\{1,\rho/k_e\}$ and assigning retained capacity $1/p_e$
+preserves all cuts within $1\pm\eta$, where
+$\rho=C\eta^{-2}\log(N/\zeta)$, failure probability is at most $\zeta$,
+and $k_e$ is the largest minimum cut of a vertex-induced subgraph containing
+the endpoints of $e$. Only the cut guarantee, not a size guarantee, is
+claimed for oversampling. This is the compression theorem and its
+oversampling consequence, Theorems 5.2 and 6.2 of~\cite{BK15}.
+\end{enumerate}
+\end{theorem}
+
+The tree construction time follows from $O((N+m)\log(N+1))$ calls to the
+metric-tree procedure in Lemmas 7--8 of~\cite{Racke08}. With an explicit
+distance table, one call runs shortest-path searches from every source
+and constructs a metric tree in $\wt O(N(N+m))$ time. A shortest path
+minimizes the sum of its edge lengths, and its vertex-pair minima define
+the distance table. A metric tree here is a tree with nonnegative edge
+lengths used to approximate that table; it is an intermediate object of
+the external construction.
+
+For completeness, the cut formulation in part~\ref{ext:tree} follows
+from the flow formulation in~\cite{Racke08} as follows. A path flow from
+$S$ to $Y\setminus S$ assigns nonnegative amounts to paths with one
+endpoint on each side. Its value is the sum of these amounts, and an
+edge's load is the sum of amounts on paths using it. Congestion is the
+maximum load divided by capacity; an edge of capacity zero must have
+zero load. The maximum-flow minimum-cut theorem identifies the largest
+value of a congestion-one path flow with the minimum capacity of a
+separating cut. The cited tree maps transfer every graph flow to each
+tree without increasing congestion. Thus $c_J(\cut S)\le c_T(S)$.
+In the other direction, choose a maximum $S$-to-$Y\setminus S$ flow
+in each tree. The cited averaged maps send these flows to $J$ with
+congestion at most $\beta(N)$ and total value $\E_Tc_T(S)$.
+Every resulting path crosses $\cut_J S$, so its total value is at most
+$\beta(N)c_J(\cut S)$. This proves the expectation inequality.
+Disconnected positive-capacity components are handled separately and their
+trees joined by zero-capacity edges.
+
+\begin{lemma}[Constrained tree cuts]\label{lem:tree-dp}
+Given a tree of part~\ref{ext:tree}, pins, integer terminal masses with
+total at most $n$, an exact prescribed selected mass, and a prescribed
+interval of selected-terminal counts, the minimum tree cut is computable
+in $O(n^2N^3)$ time. If there is no mass constraint, the computation and
+recovery of one minimizing cut use $O(N)$ working words and polynomial time.
+Consequently, with high probability, an $O(\log n)$-approximate pinned
+cut with counts in $[N/3,2N/3]$ can be found combinatorially in polynomial time and
+$\wt O(N+m)$ space, without an exact-mass constraint.
+\end{lemma}
+\begin{proof}
+Root the tree and, if necessary, replace a vertex of high degree by a binary
+tree of copies. Joining copies with edges larger than the sum of all finite
+capacities forces identical labels. For a vertex $v$, let
+$A_v(\sigma,j,h)$ be the minimum cost inside its subtree when $v$ has
+label $\sigma\in\{0,1\}$, the number of terminals with label one is $j$,
+and their mass is $h$. A terminal contributes its count and mass precisely
+when its label is one; an internal vertex contributes zero. A pin prohibits
+the other label. For a child $z$, combine a parent entry and a child entry,
+add their count and mass indices, and add the edge capacity exactly when
+their labels differ. Minimize over entries with the same resulting indices.
+More explicitly, let $a_v$ equal one at a terminal and zero otherwise,
+and let $m_v$ be its terminal mass, or zero at an auxiliary vertex.
+If $z_1,z_2$ are the two children and their edge capacities are
+$c_1,c_2$, the recurrence is
+\[
+ A_v(\sigma,j,h)=
+ \min_{\substack{j_1+j_2=j-a_v\sigma\\h_1+h_2=h-m_v\sigma}}
+ \ \sum_{i=1}^2\min_{\sigma_i\in\{0,1\}}
+ \bigl(A_{z_i}(\sigma_i,j_i,h_i)+c_i\ind[\sigma_i\ne\sigma]\bigr).
+\]
+An absent child contributes zero with count and mass zero. A leaf has
+value zero exactly at its permitted label and corresponding count and
+mass, and infinity otherwise. There are $O(N)$ combinations, and direct
+enumeration of two count indices and two mass indices costs
+$O(N^2n^2)$ at each combination. This proves the running time.
+At the root minimize over permitted indices and both labels. An infeasible
+entry has value $+\infty$.
+
+Without the mass index, live arrays have total length $O(N)$ if children are
+processed one at a time and arrays are allocated only for processed
+terminals. The processed terminal sets underlying simultaneously retained
+arrays are disjoint; zero-terminal arrays contribute at most the number
+of tree vertices. Discard child arrays after combination. Recover a cut by
+fixing vertex labels successively, recomputing the optimum with each next
+label forced to zero; keep it if the optimum is unchanged, and otherwise
+force one. There are $O(N)$ recomputations and the space bound is unchanged.
+
+For a fixed optimal feasible set $S^*$, a tree minimizer $S_T$ satisfies
+$c_J(\cut S_T)\le c_T(S_T)\le c_T(S^*)$. Part~\ref{ext:tree} and Markov's
+inequality give a $2\beta(N)$ approximation with probability at least
+one half. Repeat independently $O(\log n)$ times and retain the least
+original graph cost. If the optimum is zero, its nonnegative tree costs
+have expectation zero and vanish with probability one.
+The construction in part~\ref{ext:tree} admits $\wt O(N+m)$ workspace:
+retain the current multiplicative edge weights and a weighted reservoir
+sample of the generated trees. Specifically, if successive trees have
+positive weights $p_1,p_2,\ldots$, replace the currently stored tree by tree $i$
+with probability $p_i/(p_1+\cdots+p_i)$. Induction shows that after step
+$i$ each earlier tree $j$ is stored with probability
+$p_j/(p_1+\cdots+p_i)$. Only one tree and the cumulative weight are
+stored. Shortest-path arrays for the metric-tree
+procedure can be recomputed one source at a time, and each embedded tree-edge
+path can be processed and discarded. The metric-tree partitions require
+only the current vertex memberships and a permutation; distances are
+recomputed on demand. This increases time only polynomially. No full
+distance table, collection of embeddings, or collection of trees is stored.
+\end{proof}
+
+\paragraph{Coefficient encoding.}
+The graph algorithms are used with finite precision in their stated
+word-operation models. The reductions do not require exact arithmetic on
+unbounded denominators. One may round every positive generated capacity
+upwards to a binary number within a factor $1+\nu$, retaining zero
+exactly, where $\nu=n^{-c}$ and $c$ is a sufficiently large fixed constant.
+For any cut, the same relative bound holds after summing capacities.
+Thus an $\alpha_0$-approximate cut for the rounded graph is an
+$(1+\nu)\alpha_0$-approximate cut for the unrounded graph.
+In cumulative compression, only $O(\log n)$ such factors occur on one
+entry's history. Allocate these errors within the constant slack in
+Lemma~\ref{lem:prefix-core} and the squared-error graph bounds below.
+Use a power-of-two upper bound for each approximation parameter and
+choose sign-projection dimension to be a power of two. Penalty scans
+then also have binary coefficients after this rounding.
+
+All distances, masses, heights, and uncompressed certificate coefficients
+have polynomial magnitude. Product-clique sampling creates positive
+capacities at least an inverse polynomial: its sample count and every
+probability denominator are polynomial, and its unscaled coefficients
+are positive integers. Compression resamples a retained edge with
+capacity divided by a probability at most one, so it does not decrease
+this lower bound. On the cut-preservation event, summing singleton cuts
+bounds total compressed capacity by a constant times original total
+capacity; in particular its magnitude stays polynomial. A larger
+capacity is detected and flags failure. The prefix sketch capacities
+are powers of two with logarithmic exponents. In squared-error states,
+all queried entries and heights are integers, and projected squared norms
+have denominator equal to the sign dimension before their fixed rescaling.
+These facts give a fixed polynomial upper and inverse-polynomial lower
+bound for every positive reduction coefficient. Binary rounding therefore
+uses $O(\log n)$ exponent and mantissa bits. All positivity tests and
+zero-cost cases remain exact. Factors $1+\nu$ are absorbed in the fixed
+constants of the cut guarantees, not in the approximation exponents.
+
+\begin{lemma}[Fast pinned balanced cuts]\label{lem:fast-cut}
+Let terminal count be one for each of $N$ atoms and zero for one additional
+vertex. Pins may force one atom inside and any specified atoms outside.
+There is a randomized $\wt O(N+m)$-time algorithm that, with high
+probability, returns a pinned cut with between $N/8$ and $7N/8$ atoms,
+of capacity at most $\alpha(n)=O(\log^2 n)$ times
+every pinned cut with between $N/3$ and $2N/3$ atoms, whenever one exists.
+\end{lemma}
+\begin{proof}
+First consider ordinary count weights $q$ with $q(Y)=N$.
+If a $[N/3,2N/3]$-balanced optimum has positive cost $h$, scan geometric
+values of $\phi$ including one in $[24h/(a_0N),48h/(a_0N)]$.
+Part~\ref{ext:ed} cannot return a component of count greater than $3N/4$:
+both its intersections with the comparison cut have count greater than
+$N/12$, contradicting expansion and the cut's cost $h$.
+Choose a component of count in $[N/4,3N/4]$ if there is one; otherwise
+accumulate components of count less than $N/4$ until the count first reaches
+$N/4$. The count is less than $N/2$, and the cut costs $O(h\log^2 n)$.
+When $h=0$, do this test on the positive-capacity connected components
+before the scan. A positive cut value is between the smallest positive
+capacity and the sum of capacities, so the parameter scan has
+polylogarithmic length under the encoding convention. Explicitly check
+balance and retain the least valid result.
+
+Contract the forced-out atoms into the additional vertex $t$, retaining
+their count. Write $s$ for the inside pin. Find the ordinary balanced cut
+$D$ just described and a twice-optimal pinned cut $A$ by part~\ref{ext:st}.
+If $D$ separates $s,t$, orient it towards $s$ and return it. Otherwise orient
+$D$ so it contains neither. If $q(A)\in[N/8,7N/8]$, return $A$.
+If $q(A)<N/8$, return $A\cup D$; if $q(Y\setminus A)<N/8$, return
+$A\setminus D$. Each result has the required pins and count.
+For any sets $A,D$, the cut of either $A\cup D$ or $A\setminus D$ has
+capacity at most $c_J(\cut A)+c_J(\cut D)$, since every crossing edge
+crosses at least one of the two original cuts. Both summands are bounded
+against each permitted pinned comparison cut. Repeat the ordinary cut
+construction and the pinned cut construction independently $O(\log n)$
+times. Check the count constraints for ordinary cuts and the pins for
+pinned cuts; in each construction retain the least capacity among valid
+outputs. Each required comparison has constant success probability in
+one trial, so repetition makes its failure inverse polynomial in $n$.
+This proves the claim.
+\end{proof}
+
+We use one matrix concentration inequality in the next proof. A real
+symmetric matrix $A$ is positive semidefinite when $z^{\mathsf T}Az\ge0$
+for every real vector $z$. Write $A\preceq B$ when $B-A$ is positive
+semidefinite, and write $I_\ell$ for the identity matrix in dimension
+$\ell$. The following form of the matrix Chernoff inequality follows
+from Corollary 5.2 of~\cite{Tropp12}: if independent random symmetric
+matrices $Y_j$ satisfy $0\preceq Y_j\preceq R_0I_\ell$ and
+$\sum_j\E Y_j=I_\ell$, then for $0<\eta<1$,
+\[
+ \Prb\!\left[(1-\eta)I_\ell\preceq\sum_jY_j
+                    \preceq(1+\eta)I_\ell\right]
+ \ge1-2\ell\exp\!\left(-\frac{\eta^2}{3R_0}\right).
+\]
+The scalar parameter $R_0$ is positive. This inequality is used only
+for analysis; the sampling algorithm below computes no matrix inverse.
+
+\begin{lemma}[Sparse cumulative partition graphs]\label{lem:prefix-core}
+Let $X$ have $N$ elements of positive integer masses $\mu_x$, with
+$\sum_x\mu_x\le n$. Let $q\ge1$ be polynomially bounded. Given
+partitions $Q_1,\ldots,Q_q$ and nonnegative coefficients $w_1,\ldots,w_q$
+with the encodings specified above, define a graph at each index
+$\tau\in\{1,\ldots,q+1\}$ by
+\[
+ k^\tau_{xy}=\mu_x\mu_y\sum_{i<\tau}w_i\join_{Q_i}(x,y).
+\]
+There is a sequential procedure that, while reading one partition at a time,
+keeps a graph with capacities $\bar k^\tau$ and $\wt O(N)$ edges
+satisfying, with high probability simultaneously for every such $\tau$
+and every $C\subseteq X$,
+\[
+ k^\tau(\cut C)\le\bar k^\tau(\cut C)\le2k^\tau(\cut C).
+\]
+Its total work is $\wt O(qN)$ and its workspace is $\wt O(N)$.
+It is combinatorial in the sense defined in Section~\ref{sec:definitions}.
+\end{lemma}
+\begin{proof}
+Let $0<\eta<1/2$ and $0<\zeta<1/2$ be per-call error and failure
+parameters; their values are specified below. Omit blocks with $w_i=0$
+and blocks of size one. A remaining block $B$ contributes the clique
+with capacity $w_i\mu_x\mu_y$ on $xy$. Put $R=\mu(B)$. The effective-resistance leverage
+of edge $xy$ in this clique is $(\mu_x+\mu_y)/R$, and the sum of these
+values is $|B|-1$. To verify the first formula, its Laplacian is
+$w_i(R\diag(\mu)-\mu\mu^{\mathsf T})$, where $\mu$ is the column
+vector $(\mu_x)_{x\in B}$ and $\diag(\mu)$ is the diagonal matrix of
+those masses. The value $(e_x-e_y)^{\mathsf T}L^+(e_x-e_y)$ is
+$(\mu_x^{-1}+\mu_y^{-1})/(w_iR)$. Here $e_x$ is the coordinate unit
+vector in $\mathbb R^B$, the Laplacian $L$ of a graph has diagonal entries $\sum_yc_{xy}$
+and off-diagonal entries $-c_{xy}$, and $L^+$ is its inverse on the
+orthogonal complement of its kernel and zero on its kernel.
+This quadratic form defines effective resistance. Leverage is capacity
+times effective resistance.
+
+Sample
+\[
+ s=3(|B|-1)\lceil\eta^{-2}\rceil
+                 \left\lceil\log_2\frac{2(|B|-1)}{\zeta}\right\rceil
+   =O(|B|\eta^{-2}\log(n/\zeta))
+\]
+independent edges with probability $p_{xy}=(\mu_x+\mu_y)/(R(|B|-1))$, assigning each sampled
+copy capacity $w_i\mu_x\mu_y/(sp_{xy})$. This is the leverage sampler
+of Spielman--Srivastava~\cite{SS11}. To obtain the stated failure
+probability, put $\ell=|B|-1$, write $p_e=p_{xy}$ for $e=xy$, and put
+\[
+ v_e=\sqrt{w_i\mu_x\mu_y}\,L^{+1/2}(e_x-e_y).
+\]
+Here $L^{+1/2}$ is the positive semidefinite square root of $L^+$.
+These vectors lie in the space orthogonal to the all-one vector,
+which has dimension $\ell$. In any orthonormal coordinates on that
+space,
+\[
+ \sum_e v_ev_e^{\mathsf T}=I_\ell,\qquad
+ v_e^{\mathsf T}v_e=\ell p_e.
+\]
+The first identity follows by substituting
+$L=\sum_{e=xy}w_i\mu_x\mu_y(e_x-e_y)(e_x-e_y)^{\mathsf T}$;
+the second is the leverage formula above. If $e_j$ is sample $j$,
+set $Y_j=v_{e_j}v_{e_j}^{\mathsf T}/(sp_{e_j})$. Then
+$\sum_j\E Y_j=I_\ell$ and $0\preceq Y_j\preceq(\ell/s)I_\ell$,
+the latter by Cauchy--Schwarz. The displayed matrix concentration
+inequality bounds failure by $2\ell\exp(-\eta^2s/(3\ell))$.
+The chosen sample size makes this at most $\zeta$.
+Undoing multiplication by $L^{+1/2}$ gives a $1\pm\eta$
+approximation to every Laplacian quadratic form. For a cut, use the
+vector with entry one on its selected side and zero elsewhere;
+its quadratic form is exactly cut capacity. Thus all cuts are
+approximated simultaneously.
+
+The implementation needs no linear-system computation: choose the first
+endpoint proportionally to $\mu_x$, and the second uniformly among
+the other vertices. The resulting unordered probability is exactly
+$p_{xy}$. A block of size one contributes no edges. The vectors $v_e$
+and the matrices $Y_j$ are used only in the proof.
+
+Maintain a binary counter of consecutive intervals of processed layers.
+Each counter entry is a sparsifier of its interval sum. Insert the current
+layer sparsifier and, when two equally long intervals meet, add their
+graphs and apply part~\ref{ext:bk}. At most
+$d_0=1+\lceil\log_2 q\rceil$ errors accumulate in any entry, including
+its initial clique sampling. Take $\eta=1/(10d_0)$ and scale the union
+of current entries by $(1-\eta)^{-d_0}$. Each original cut capacity is
+then preserved between factors one and
+$((1+\eta)/(1-\eta))^{d_0}<2$.
+There are fewer than $q$ merges, each on $\wt O(N)$ edges, and at most
+$qN$ initial block samplings. For any desired failure exponent $a>0$,
+use $\zeta=n^{-a}/(4nq)$ in each sampling and compression call.
+A union bound proves the simultaneous assertion.
+The probabilities in the explicit clique sampler are rational numbers
+with polylogarithmic encodings. The stated compression theorem handles
+capacitated graphs; rational encodings and inverse-polylogarithmic errors
+contribute only polylogarithmic factors here.
+\end{proof}
+
+\section{A single graph for all distance thresholds}
+\label{sec:sketch}
+
+This section concerns a graph $G$ on $V$ given by a finite stream of distinct edge records with unit
+capacities and nonnegative keys $\kappa_e$. Parallel records receive distinct
+identifiers. Set $m_0$ to an upper bound on its number of records, and order
+edges lexicographically by $(\kappa_e,\text{identifier})$. For a graph $R$ on $V$ and a real threshold $t$,
+$R_{\le t}$ retains its edges with key at most $t$. A spanning forest contains
+a spanning tree of each connected component; a minimum spanning forest
+minimizes the sum of edge keys, with the stated tie-breaking order.
+Define $C_k(R)$ by taking $k$ successive minimum spanning forests,
+each in the graph remaining after the preceding forests are removed.
+
+\begin{lemma}[Prefix certificates]\label{lem:msf}
+For every $t,S$, if $q=|\cut_{R_{\le t}}S|$, then
+\[
+ |\cut_{C_k(R)_{\le t}}S|\ge\min\{k,q\}.
+\]
+\end{lemma}
+\begin{proof}
+Kruskal's algorithm processes edges in increasing order and accepts an edge
+when it joins distinct forest components. Thus its restriction to a key
+prefix is a spanning forest of that prefix. The same statement applies in
+each residual graph. Whenever a residual prefix has an edge crossing $S$,
+the spanning tree of its component has a crossing edge. Each successive
+forest therefore removes at least one crossing edge until none remains.
+\end{proof}
+
+A \emph{$k$-cut certificate} is an edge subset whose intersection with
+every cut has at least the smaller of $k$ and the original cut's edge
+count. Thus Lemma~\ref{lem:msf} provides a $k$-cut certificate for
+each prefix simultaneously.
+
+An edge is \emph{$r$-weak} if its strength $k_e$, defined in
+Theorem~\ref{thm:external}\ref{ext:bk}, is less than $r$.
+We give the certificate fact used below; it is also Theorem 8.3 and
+footnote 2 of~\cite{BK15}.
+
+\begin{lemma}[Weak edges occur in the certificate]\label{lem:weak}
+For an unweighted graph on $n$ vertices and $r\ge1$, the union of
+$\lceil4r\rceil\lceil\log_2(n+1)\rceil$ successive spanning forests
+contains every $r$-weak edge. The forests need not be minimum spanning
+forests.
+\end{lemma}
+\begin{proof}
+Call a vertex set with at least two vertices $r$-strong if its induced
+subgraph has minimum cut at least $r$. A singleton is also called
+$r$-strong. The union of two intersecting $r$-strong sets is
+$r$-strong: any nontrivial cut of the union splits at least one of
+the two sets. Thus maximal $r$-strong sets partition the vertices.
+Contract these sets. Every $r$-weak edge remains uncontracted, and
+the contracted graph has no $r$-strong set with at least two vertices.
+Indeed, the union of the contracted sets in such a set would be
+$r$-strong. A cut splitting a contracted set has capacity at least
+$r$ inside that set; a cut splitting none has the corresponding
+contracted-graph capacity at least $r$. This contradicts maximality.
+
+Any unweighted graph on $s\ge2$ vertices with no nontrivial $r$-strong
+induced subgraph has fewer than $r(s-1)$ edges. To prove this, repeatedly
+split a nonsingleton vertex set along a cut of capacity less than $r$.
+There are $s-1$ splits, each edge is counted at its first separating
+split, and all edges are eventually counted.
+Apply this observation to the vertices incident to an edge of the
+contracted graph; if there are none, the proof is complete.
+Their average degree is less than $2r$, so more than half have degree
+less than $4r$. In one block of $\lceil4r\rceil$ forest removals,
+every edge incident to any such vertex is removed: the forests form
+a cut certificate by the proof of Lemma~\ref{lem:msf}, and the
+corresponding singleton cut in the contracted graph has fewer than $4r$ edges.
+Pulling that cut back to the uncontracted graph proves the assertion
+even when edges inside a contracted set are present. The remaining
+contracted graph still has no nontrivial $r$-strong induced subgraph. Hence
+each block halves its number of nonisolated vertices. After
+$\lceil\log_2(n+1)\rceil$ blocks no edge of the contracted graph remains.
+In particular every $r$-weak edge has been removed.
+\end{proof}
+
+By Lemma~\ref{lem:msf}, restriction of successive minimum spanning
+forests to a key prefix gives successive spanning forests of that
+prefix. Lemma~\ref{lem:weak} therefore applies to every prefix.
+
+\begin{lemma}[One halving step]\label{lem:halving}
+Let $0<\eta<1/2$ and let $0<\zeta<1/2$. For
+\[
+ r=C\eta^{-2}\log(nm_0/\zeta),\qquad
+ k=\lceil8r\rceil\lceil\log_2(n+1)\rceil,
+\]
+keep $C_k(R)$, and retain each other edge independently with probability
+one half and capacity two. The resulting graph approximates every cut of
+every key prefix within $1\pm\eta$, except with probability $\zeta$.
+\end{lemma}
+\begin{proof}
+Fix a prefix. Its certificate contains every edge of strength below $2r$,
+by Lemma~\ref{lem:weak}. Every unprotected edge has strength at
+least $2r$, so its sampling probability one half is at least $r/k_e$.
+Protected edges have sampling probability one. Apply
+Theorem~\ref{thm:external}\ref{ext:bk}, with failure probability
+$\zeta/m_0$ for this prefix. There are at most $m_0$ nonempty distinct key
+prefixes. A union bound proves the result.
+\end{proof}
+
+\begin{theorem}[One-pass prefix cut sparsifier]\label{thm:prefix}
+For $0<\varepsilon\le1/4$, $0<\delta<1/2$, and $m_0=n^{O(1)}$, there is
+a combinatorial one-pass algorithm retaining a keyed capacitated graph $H$
+with
+\[
+ O\!\left(n\varepsilon^{-2}\log^5(nm_0/\delta)\right)
+\]
+edges, such that, with probability at least $1-\delta$,
+\begin{equation}\label{eq:prefix}
+ (1-\varepsilon)|\cut_{G_{\le t}}S|
+ \le a_{H_{\le t}}(\cut S)
+ \le(1+\varepsilon)|\cut_{G_{\le t}}S|
+ \quad\text{for every }t,S.
+\end{equation}
+Each retained edge has its original key and capacity $2^j$ for a
+nonnegative integer $j=O(\log(m_0/\delta))$. For fixed accuracy and
+inverse-polynomial failure, updates take $\wt O(1)$ time per record
+and space is $\wt O(n)$.
+\end{theorem}
+\begin{proof}
+Put $L=\lceil\log_2(3m_0/\delta)\rceil$ and
+$\eta=\varepsilon/(4L)$.
+Starting with $R_0=G$, at level $j$ protect $C_k(R_j)$ and put its
+edges in $H$ with capacity $2^j$. Independently retain each unprotected
+edge with probability one half to form $R_{j+1}$. Use
+Lemma~\ref{lem:halving} at every level with failure $\delta/(3L)$.
+Each substitution $R_j\mapsto C_k(R_j)+2R_{j+1}$ has relative error at
+most $\eta$. Substitution from the last level backwards bounds the
+composed relative factors by $(1\pm\eta)^L$, which lie in
+$[1-\varepsilon,1+\varepsilon]$. An edge in $R_L$ has survived $L$
+independent halving decisions; thus
+$\Prb[R_L\ne\varnothing]\le m_02^{-L}\le\delta/3$.
+If $R_L$ is nonempty, report failure. There are at most $k(n-1)L$
+protected edges, giving the size bound.
+
+Here is the one-pass implementation. Maintain all $k$ forests at every
+level. Given one insertion $e$ into a minimum spanning forest $F$ of a graph
+$A$, add $e$ if it joins two components. Otherwise let $f$ be the
+largest-key edge on its forest path. Replace $f$ by $e$ if $e<f$,
+and emit $f$; if $f<e$, emit $e$ without changing the forest.
+If no edge is emitted, stop this insertion. The cycle rule proves that
+the new forest is $F'=\MSF(A+e)$ and that
+\[
+ (A+e)\setminus F'=(A\setminus F)+o,
+\]
+where $o$ is the emitted edge, or the empty set if no edge is emitted.
+Therefore the residual only receives insertions. Feed the emitted edge
+into the next forest; after the $k$th forest, toss its halving coin and,
+if retained, feed it into the first forest at the next level.
+Induction on insertions and forest indices proves that the final forests
+are exactly the certificates of the conceptual construction.
+Coins at one level do not affect its own certificate. Conditional on the
+graph entering that level, its residual coins are independent, as required
+by Lemma~\ref{lem:halving}. An edge cannot leave and subsequently reenter
+the same forest cascade.
+
+Set a failure flag when an edge reaches $R_L$ and discard that edge.
+This enforces the size bound on all executions. Link, cut, and
+maximum-on-path operations are supported in $O(\log n)$ amortized time
+by dynamic trees~\cite{ST83}. One original record traverses at most $kL$
+forests. This proves the resource bounds.
+\end{proof}
+
+All subsequent uses of a failed construction return the height-$M$
+ultrametric and count the failure against their stated probability. Every intermediate sparsifier is also given its asserted $C N\log^c(n+1)$ edge cap, for sufficiently large fixed constants $C,c$; exceeding a cap marks that trial failed. Thus the working-space bounds hold on every execution, including failed executions.
+
+\begin{lemma}[A stored graph evaluates $L_1$]\label{lem:cost-sketch}
+For the complete input, maintain also $D_0=\sum_{xy}d_{xy}$.
+For any ultrametric $u$ with entries in $[0,M]$, define
+\[
+ \widehat L_H(u)=D_0-\sum_{xy\in\binom V2}u_{xy}
+       +2\sum_{xy\in E(H)}a_{xy}(u_{xy}-d_{xy})_+.
+\]
+On event~\eqref{eq:prefix}, simultaneously for every such $u$,
+\[
+ |\widehat L_H(u)-L_1(d,u)|\le2\varepsilon L_1(d,u).
+\]
+Thus selecting a candidate of least $\widehat L_H$ costs at most
+$(1+2\varepsilon)/(1-2\varepsilon)$ times the least true candidate cost.
+Evaluation uses $\wt O(n)$ time per hierarchy.
+\end{lemma}
+\begin{proof}
+For a partition $P$, let $p_t(P)$ be the number of edges of $G_{\le t}$
+between its blocks. Summing the cut inequalities over its blocks and
+dividing by two preserves $p_t(P)$ within $1\pm\varepsilon$.
+For $P=P_u(t)$, integration gives
+\[
+ \int_0^M p_t(P_u(t))\,dt=\sum_{xy}(u_{xy}-d_{xy})_+.
+\]
+Its stored-graph version is the last sum in $\widehat L_H$, before
+multiplication by two. The identity
+$|d-u|=d-u+2(u-d)_+$ proves the bound and candidate-selection assertion.
+If $h_v$ is an internal tree height and its children have leaf counts
+$n_1,\ldots,n_j$, the pairs with lowest common ancestor $v$ number
+$\sum_{i<i'}n_in_{i'}$. Summing $h_v$ times this number computes
+$\sum_{xy}u_{xy}$ in linear tree time. Queries on the $\wt O(n)$ stored
+edges can use ancestor searches in $O(\log n)$ time each, with linear-space
+tree preprocessing, or an Euler-tour lowest-common-ancestor data structure.
+\end{proof}
+
+\section{A common partition sequence}
+\label{sec:guide}
+
+For $t\in[0,M)$ let $G_t$ have positive pairs $xy$ with $d_{xy}\le t$;
+all other pairs are negative. For a partition $P$, its
+\emph{disagreement cost} at $t$ is
+\[
+ \operatorname{cc}_t(P)=
+ \sum_{xy\in\binom V2}
+ |\ind[d_{xy}\le t]-\join_P(x,y)|.
+\]
+For partition-valued functions $P,Q$ on $[0,M)$, put
+\[
+ D(P,Q)=\int_0^M\sum_{xy}|\join_{P(t)}(x,y)-\join_{Q(t)}(x,y)|\,dt,
+ \qquad
+ D(G,P)=\int_0^M\operatorname{cc}_t(P(t))\,dt.
+\]
+These functions will always be piecewise constant with finitely many
+intervals, so the integrals are finite sums. For every ultrametric $u$,
+\begin{equation}\label{eq:cake}
+ L_1(d,u)=D(G,P_u),
+\end{equation}
+because the disagreement interval for one pair has length $|d_{xy}-u_{xy}|$.
+
+Choose a uniform random permutation $\pi$ of $V$; $\pi(x)$ is its rank.
+At each threshold define
+\begin{equation}\label{eq:guide}
+ f_t(v)=\arg\min_{x\in\{v\}\cup\{y:d_{vy}\le t\}}\pi(x),\qquad
+ g_t(v)=
+ \begin{cases}f_t(v),&f_t(f_t(v))=f_t(v),\\
+ v,&f_t(f_t(v))\ne f_t(v).
+ \end{cases}
+\end{equation}
+The \emph{guide partition} $Q(t)$ groups vertices with equal labels $g_t$.
+A vertex $r$ with $f_t(r)=r$ is a \emph{center}. A non-singleton block has
+a center as its label and consists of positive neighbors of that center.
+
+\begin{lemma}[Guide cost]\label{lem:guide}
+For every fixed partition $P$ at one threshold,
+$\E_\pi\operatorname{cc}_t(Q(t))\le7\operatorname{cc}_t(P)$.
+Consequently, for every fixed ultrametric $u$,
+\[
+ \E D(G,Q)\le7L_1(d,u),\qquad
+ \E D(Q,P_u)\le8L_1(d,u).
+\]
+\end{lemma}
+\begin{proof}
+Fix a block $C$ of $P$, let $k=|C|$, and let $r_C$ be its minimum-ranked
+vertex. Let $z_C$ be its number of internal negative pairs. For $v\in C$
+let $A_v$ be its number of positive neighbors outside $C$, and let
+$A_C=\sum_{v\in C}A_v$.
+If $r_C$ is a center, let $B_C=\{v\in C:g_t(v)\ne r_C\}$; otherwise
+put $B_C=C$. The number of positive pairs of $C$ separated by the guide is
+at most $k|B_C|$.
+
+When $r_C$ is a center, a vertex in $B_C$ either is negatively adjacent
+to $r_C$, or has an outside positive neighbor preceding all of $C$.
+Their expected numbers are at most $2z_C/k$ and $A_C/(k+1)$.
+The center test fails only if an outside positive neighbor of $r_C$
+precedes $r_C$. For a fixed positive pair $vw$, with $v\in C,w\notin C$,
+the event that $w$ precedes all of $C$ and $v=r_C$ has probability
+$1/(k(k+1))$. Thus
+\[
+ \E[k|B_C|]\le2z_C+2A_C.
+\]
+If the comparison partition has $p$ positive crossing pairs and $z$ negative
+internal pairs, summing gives at most $2z+4p$ new separated positive pairs.
+
+For a center $r$, let $S_r$ be its guide block, $C(r)$ its comparison
+block, and $L_r=|S_r\setminus C(r)|$. New negative pairs joined across
+comparison blocks are at most $|S_r|L_r$. Deterministically
+$|S_r|\le|N^+[r]|$ and $L_r\le A_r$, where
+$N^+[r]=\{r\}\cup\{v:rv\text{ positive}\}$. The center probability is
+$1/|N^+[r]|$. Hence the expected sum of these products is at most
+$\sum_rA_r=2p$. Previously disagreeing pairs contribute at most $p+z$.
+The total is at most $7p+3z\le7(p+z)$.
+Apply this at each fixed $t$ with $P=P_u(t)$, integrate, and use the
+triangle inequality for $D$.
+\end{proof}
+
+\begin{lemma}[Exact small representation]\label{lem:records}
+The functions $f_t,g_t$ can be stored exactly, with high probability, in
+$\wt O(n)$ words, maintained in one pass with $\wt O(n^2)$ total update
+time. They have a common grid of $\wt O(n)$ interval endpoints.
+Each label query takes $\wt O(1)$ time.
+\end{lemma}
+\begin{proof}
+For each vertex store an initial record $(-\infty,v)$ and, in increasing
+distance order, one record whenever its minimum neighbor rank strictly
+decreases. Batch equal keys. The last record with key at most $t$ gives
+$f_t(v)$. Two such queries give $g_t(v)$.
+
+At a fixed input prefix, order the available neighbors by distance and
+fixed identifier, placing $v$ first. Their relative ranks are uniformly
+random. The number $R_m$ of left-to-right minimum ranks among $m\le n$
+vertices has the same distribution as $\sum_{j=1}^m B_j$, where the
+$B_j$ are independent, take values in $\{0,1\}$, and satisfy
+$\Prb[B_j=1]=1/j$. To see this, the rank of the $j$th vertex among the
+first $j$ vertices is uniform on $\{1,\ldots,j\}$. These insertion
+ranks are independent, since their possible sequences are in bijection
+with permutations. A new minimum occurs exactly when that rank is one. Therefore
+\[
+ \E e^{R_m}=\prod_{j=1}^m(1+(e-1)/j)
+ \le \exp((e-1)(1+\log n)).
+\]
+Exponential Markov inequality gives $R_m\le C\log(n+1)$ with any required
+inverse-polynomial failure. Union-bound over vertices, input prefixes,
+and repetitions. Equal-key batching only reduces the count.
+Enforce this bound as a deterministic cap; an overflow marks the trial
+failed.
+
+For an incoming pair $vx$ of distance $z$, query the current minimum at
+$z$. Discard $x$ if its rank is no smaller. Otherwise insert $(z,x)$,
+replace an equal-key record if present, and delete later records whose
+ranks are no smaller than $\pi(x)$, stopping at the first smaller rank.
+This is exactly the minimum function of the candidates received so far.
+A discarded candidate cannot become a minimum after further insertions.
+Every inserted record is deleted at most once. Store the capped lists as
+sorted arrays. A query, insertion, or deletion scan costs $O(\log n)$
+word operations because a list has $O(\log n)$ entries. This gives the
+update bound. Both endpoints are updated.
+
+The union of final record keys, together with $0,M$, is a common grid:
+$f_t(v)$ changes only at a key of its own list, and $f_t(f_t(v))$ changes
+only at a key of one of the lists. Thus $g_t(v)$ also changes only on this
+grid. The total number of keys is $\wt O(n)$. Alternatively, sorting all
+input pairs and maintaining the same minima constructs these lists
+offline in $\wt O(n^2)$ time.
+\end{proof}
+
+Fix any grid $0=\theta_0<\theta_1<\cdots<\theta_q=M$ on whose open
+intervals $Q$ is constant, and put $w_i=\theta_i-\theta_{i-1}$ and
+$Q_i=Q(\theta_{i-1})$. Threshold endpoints have measure zero.
+We will use either the grid of all input distances, of size $O(n^2)$,
+or the record grid of Lemma~\ref{lem:records}.
+Adjoin a discrete partition at index zero and an indiscrete partition
+at index $q+1$, both with weight zero. Here \emph{discrete} means all
+singleton blocks and \emph{indiscrete} means the single block $V$.
+Thus $w_0=w_{q+1}=0$. Every subsequent sum over an unspecified layer
+index $i$ ranges over $i=0,\ldots,q+1$.
+
+\begin{lemma}[Grid restriction]\label{lem:grid}
+For every nested partition function $P$, there is a nested function
+$\widehat P$ changing only at grid endpoints such that
+$D(Q,\widehat P)\le D(Q,P)$. A nested sequence on this grid specifies
+an ultrametric with first-join height $\theta_{i-1}$ when a pair first
+joins at index $i$; a first join at $q+1$ has height $M$.
+\end{lemma}
+\begin{proof}
+Within one interval, $Q$ is fixed. The successive partitions of $P$ form
+a chain. Its disagreement integral is a linear function of the nonnegative
+lengths spent in its states, with their sum fixed. Assign the whole interval
+to a minimum-cost state, pushing preceding transitions to the left endpoint
+and succeeding transitions to the right endpoint. This preserves the order
+of transitions and does not increase cost. Repeat on all intervals.
+First-join heights satisfy the ultrametric inequality because every
+threshold relation is an equivalence relation.
+\end{proof}
+
+\section{Weighted partition states and projection}
+\label{sec:projection}
+
+A \emph{partition state} consists of a set $X$ of $N$ elements called
+\emph{atoms}, integer masses $\mu_x\ge1$, release indices
+$\lambda_x\in\{1,\ldots,q+1\}$, an upper index $H\in\{1,\ldots,q+1\}$,
+and partitions $Q_i$ of $X$. Write $\mu(C)=\sum_{x\in C}\mu_x$ and
+assume $\mu(X)\le n$ and $\lambda_x\le H$.
+The partitions have $x$ singleton for $i<\lambda_x$ and are indiscrete
+for $i\ge H$; the guide need not be nested.
+A \emph{feasible comparator} is a nested sequence with those same
+boundary properties. For any two partition sequences set
+\[
+ D_\mu(Q,P)=\sum_iw_i\sum_{xy\in\binom X2}
+       \mu_x\mu_y|\join_{Q_i}(x,y)-\join_{P_i}(x,y)|.
+\]
+At the root, $X=V$, all masses are one, all releases are one, and $H=q+1$.
+In the algorithms, each atom represents a nonempty subset of $V$ and
+its mass is the cardinality of that subset. Within one state these
+subsets are disjoint. Contracting a set of atoms replaces their subsets
+by their union. Thus an atom pair $xy$ represents exactly $\mu_x\mu_y$
+original pairs. Pairs within a contracted atom are handled in the
+inside child and are absent from the outside child's objective.
+
+For $\varnothing\ne C\subsetneq X$, $a\in C$, and
+$\max_{x\in C}\lambda_x\le\tau\le H$, define on a partition $\Pi$
+\[
+ S_C\Pi=\{B\cap C,B\setminus C:B\in\Pi\}\setminus\{\varnothing\},
+\]
+\[
+ M_{C,a}\Pi=\{C\cup(\Pi(a)\setminus C)\}
+ \cup\{B\setminus C:B\in\Pi,\ B\ne\Pi(a)\}\setminus\{\varnothing\}.
+\]
+The \emph{projection} $T_{C,\tau,a}$, abbreviated $T_a$ when $C,\tau$
+are fixed, applies $S_C$ at $i<\tau$ and $M_{C,a}$ at $i\ge\tau$.
+We call $\tau$ the \emph{birth index} of $C$. A \emph{separator} is a
+pair $(C,\tau)$ with $2\le |C|\le N-1$ and
+$\max_{x\in C}\lambda_x\le\tau\le H$. It is \emph{feasible} when
+these inequalities hold. Separators are used only when $N\ge3$.
+A set $C$ is \emph{compatible} with a nested sequence $P$ at $\tau$
+if no block crosses $C$ below $\tau$ and all of $C$ lies in one block
+at and above $\tau$.
+
+\begin{lemma}[Projection identities]\label{lem:projection}
+Projection maps a nested sequence to a nested sequence and preserves
+the boundary properties. A compatible
+comparator is fixed. If $A\in C$ is sampled with probability
+$\Prb[A=x]=\mu_x/\mu(C)$, then, for arbitrary partition sequences $Q,P$,
+\[
+ \E_A D_\mu(T_AQ,T_AP)\le D_\mu(Q,P).
+\]
+\end{lemma}
+\begin{proof}
+Splitting along a fixed set preserves refinement. In a nested sequence
+the anchor blocks grow, so the coarse merging also preserves refinement.
+Across $\tau$, each fine block lies in the corresponding coarse block.
+Splitting cannot merge unreleased atoms. A new coarse merge involves
+released atoms of $C$; an unreleased outside atom was a singleton and
+cannot lie in the old anchor block. The upper boundary is unchanged.
+Compatibility makes each relation unchanged.
+
+At a fine layer, crossing disagreements are deleted and other
+disagreements are unchanged. At a coarse layer, internal disagreements
+are deleted and outside disagreements are unchanged. For $y\notin C$,
+the total new crossing disagreement is
+$\mu(C)\mu_y|\join_{Q_i}(A,y)-\join_{P_i}(A,y)|$. Its expectation is exactly
+$\sum_{x\in C}\mu_x\mu_y|\join_{Q_i}(x,y)-\join_{P_i}(x,y)|$.
+Sum over $y$ and indices.
+\end{proof}
+
+For one layer $\Pi$, put $c=\mu(C)$,
+$p_B=\mu(B\cap C)$, $q_B=\mu(B\setminus C)$, $r_B=\mu(B)$, and
+$B_a=\Pi(a)$. Define
+\[
+ J_\Pi(C)=\sum_{\{B,B'\}\in\binom\Pi2}p_Bp_{B'},\qquad
+ s_\Pi(C)=\sum_Bp_Bq_B,
+\]
+\[
+ h_{\Pi,a}(C)=J_\Pi(C)+\sum_{B\ne B_a}p_Bq_B+q_{B_a}(c-p_{B_a}),
+\]
+\[
+ \widetilde h_{\Pi,a}(C)=J_\Pi(C)+\sum_{B\ne B_a}p_Bq_B+r_{B_a}(c-p_{B_a}),
+\]
+and
+\[
+ \Gamma_{\tau,a}(C)=\sum_{i<\tau}w_is_{Q_i}(C)
+             +\sum_{i\ge\tau}w_i\widetilde h_{Q_i,a}(C).
+\]
+The symbol $\Gamma$ always denotes this certificate.
+
+\begin{lemma}[Certificate bounds]\label{lem:certificate}
+Fine projection edit is $s_\Pi(C)$ and coarse projection edit is
+$h_{\Pi,a}(C)$. For every fixed $a\in C$ and an independent
+mass-proportional $A\in C$,
+\[
+ \E_A D_\mu(Q,T_AQ)\le2\Gamma_{\tau,a}(C).
+\]
+For a compatible feasible comparator $P$,
+\[
+ \E_{a\sim\mu|_C}\Gamma_{\tau,a}(C)\le4D_\mu(Q,P).
+\]
+The notation $a\sim\mu|_C$ means $\Prb[a=x]=\mu_x/c$ for $x\in C$.
+\end{lemma}
+\begin{proof}
+A split separates precisely the old joined crossing pairs.
+A merge joins internal pairs from distinct old blocks, separates old
+crossing pairs in nonanchor blocks, and joins the outside anchor-block
+points to the included points in other blocks. These give the formulas.
+Averaging coarse edit gives
+\[
+ J_\Pi(C)+2\sum_Bp_Bq_B(1-p_B/c).
+\]
+For $B\ne B_a$, the summand before multiplication by two is at most
+$p_Bq_B$; for $B=B_a$ it is at most $q_{B_a}(c-p_{B_a})$.
+This proves the first inequality.
+If $P$ is compatible, $T_AP=P$, so the triangle inequality and
+Lemma~\ref{lem:projection} bound expected exact edit by $2D_\mu(Q,P)$.
+The excess of $\widetilde h$ over $h$, averaged over $a$, is
+\[
+ \frac1c\sum_Bp_B^2(c-p_B)
+ \le\sum_Bp_B(c-p_B)=2J_\Pi(C).
+\]
+At coarse layers all pairs counted by $J_\Pi(C)$ are comparator
+disagreements. Their weighted sum is at most $D_\mu(Q,P)$.
+\end{proof}
+
+\begin{lemma}[Compatible balanced sets]\label{lem:balanced}
+Every feasible comparator with $N>6$ has a compatible set $C$ at a feasible
+$\tau$ with $N/3\le|C|\le2N/3$. For $3\le N\le6$, a proper compatible set
+with $2\le|C|\le N-1$ exists.
+\end{lemma}
+\begin{proof}
+Use its hierarchy tree with atoms as leaves. Descend to a vertex whose
+children each have at most $2N/3$ leaves while the current subtree has
+more than $2N/3$. If a child has at least $N/3$ leaves, take it.
+Otherwise accumulate children until their union first reaches $N/3$;
+the union has fewer than $2N/3$ leaves. Insert their union at their
+parent's height. This is an equal-height refinement and changes no pair
+distance. Releases are no later than that height. For the small cases,
+take a proper internal subtree with at least two leaves if one exists.
+If none exists, every root child is a leaf after one-child vertices are
+suppressed, and a union of two root children has between two and $N-1$
+leaves. Insert that union at the root height.
+\end{proof}
+
+\begin{lemma}[Sizes in a balanced recursion]\label{lem:recursion-size}
+Consider a recursion starting at count $n$. Each state of count $N$
+where recursion continues has child counts $k,N-k+1$, with
+$2\le k\le N-1$.
+Suppose there are constants $\rho<1$ and $N_0$ such that both child
+counts are at most $\rho N$ whenever $N>N_0$, and no state of count
+at most $N_0$ has more than $N_0$ further levels. Then the number of
+states is $O(n)$, the depth is $O(\log n)$, and
+\[
+ \sum_v N_v=O(n\log n),\qquad
+ \sum_v N_v^s=O(n^s)\quad\text{for every fixed }s>1.
+\]
+Here $v$ ranges over states and $N_v$ is a state's count.
+\end{lemma}
+\begin{proof}
+The quantity $N-1$ is positive for every state of count at least two,
+and its child values sum to $N-1$. Thus there are at most $n-1$
+states where recursion stops, and at most $2n-3$ states in
+their binary recursion tree. Every child count is at least two.
+The depth assertion follows
+from the factor $\rho$ above count $N_0$.
+At any fixed depth, the sum of $N_v-1$ is at most $n-1$, so the sum
+of $N_v$ is at most $2(n-1)$. This proves the first sum bound.
+For states with $N_v>N_0$ at depth $j$, every ancestor is also above
+$N_0$, whence $N_v\le\rho^j n$. Their contribution to the second sum
+at that depth is at most $2(n-1)(\rho^j n)^{s-1}$.
+The sum over $j$ is a convergent geometric series times $O(n^s)$.
+There are $O(n)$ states of count at most $N_0$, each contributing a
+constant depending only on $s,N_0$. This proves the second bound.
+\end{proof}
+
+\begin{lemma}[Recursion principle]\label{lem:l1-recursion}
+Suppose a procedure chooses a feasible $C,\tau$ with
+$2\le|C|\le N-1$, constant-factor count balance when $N>16$, and
+\[
+ \E D_\mu(Q,T_AQ)\le K D_\mu(Q,P)
+\]
+for every feasible comparator $P$, using a fresh mass-proportional
+execution anchor $A$. Project, recurse inside $C$ with upper index $\tau$,
+and recurse outside with $C$ contracted to one atom of mass $\mu(C)$
+and release $\tau$. Substitute the inside hierarchy for that atom.
+Then its output $R$ satisfies
+\[
+ \E D_\mu(Q,R)\le(1+Kh(N))D_\mu(Q,P),
+\]
+where $h(N)=O(\log n)$ is the maximum nontrivial recursion depth.
+\end{lemma}
+\begin{proof}
+Project $P$ using the same anchor. Its inside and outside restrictions
+are feasible. The two comparator distances sum exactly to
+$D_\mu(T_AQ,T_AP)$: internal pairs occur inside, outside pairs outside,
+and crossing pairs have one common relation and aggregate weight
+$\mu(C)\mu_y$. The same identity holds for substituted outputs.
+Substitution preserves nesting because inside merges occur no later
+than $\tau$ and outside merges involving the contracted atom occur no
+earlier than $\tau$.
+Explicitly, below $\tau$ the inside guide is $Q_i$ restricted to $C$,
+and at and above $\tau$ it is the single block $C$. Below $\tau$ the
+outside guide is $Q_i$ restricted to $X\setminus C$, together with
+the singleton contracted atom. At and above $\tau$, start with the
+same restriction and insert that atom into $Q_i(A)\setminus C$,
+creating a singleton if this set is empty.
+The same rules apply to the projected comparator. These definitions
+specify both recursive inputs without retaining the projected sequence.
+For the induction, put $B=D_\mu(Q,P)$ and let $h$ be the remaining
+depth bound. Conditional on the separator and its execution anchor,
+the two inductive error bounds sum to at most
+$(1+K(h-1))D_\mu(T_AQ,T_AP)$. The triangle inequality and
+Lemma~\ref{lem:projection} therefore give
+\[
+ \E D_\mu(Q,R)
+ \le KB+(1+K(h-1))B=(1+Kh)B.
+\]
+The two child counts are $|C|$ and $N-|C|+1$. Constant balance gives
+geometric decrease above the fixed small-state size; below it both
+counts decrease. Lemma~\ref{lem:recursion-size} gives the depth bound,
+completing the induction.
+At $N=2$ choose the best feasible merge index
+by a scan; at $N=1$ return the single leaf.
+\end{proof}
+
+
+
+\section{The combinatorial offline \texorpdfstring{$L_1$}{L1} algorithm}
+\label{sec:slow}
+
+For a partition state define, for $x\ne y$,
+\[
+ b^\tau_{xy}=\sum_{i\ge\tau}w_i\ind[Q_i(x)\ne Q_i(y)],
+ \qquad B_\tau(C)=\sum_{xy\in\binom C2}\mu_x\mu_yb^\tau_{xy}.
+\]
+Set $b^\tau_{xx}=0$. Each $b^\tau$ is a pseudometric, meaning a symmetric
+nonnegative function with zero diagonal satisfying the triangle inequality:
+each summand is the distance zero within a partition block and one between
+blocks. For a certificate anchor $a$, put
+\[
+ \kappa^{\tau,a}_{xy}=\mu_x\mu_y\left(
+  \sum_{i<\tau}w_i\ind[Q_i(x)=Q_i(y)]
+ +\sum_{i\ge\tau}w_i\ind[Q_i(x)=Q_i(y)\ne Q_i(a)]\right),
+\]
+\[
+ \ell^{\tau,a}_x=
+ \mu_x\sum_{i\ge\tau}w_i\mu(Q_i(a))\ind[Q_i(x)\ne Q_i(a)].
+\]
+For any edge coefficients $v_{xy}$, write
+$v(\cut C)=\sum_{x\in C,y\notin C}v_{xy}$; for unary coefficients
+$v_x$, write $v(C)=\sum_{x\in C}v_x$.
+
+\begin{lemma}[Cut representation and one extra anchor]\label{lem:medoid}
+For $a\in C$,
+\[
+ \Gamma_{\tau,a}(C)=\kappa^{\tau,a}(\cut C)+\ell^{\tau,a}(C)+B_\tau(C).
+\]
+Writing $c=\mu(C)$, there is $r\in C$ with
+\[
+ B_\tau(C)\le c\sum_{x\in C}\mu_xb^\tau_{rx}
+       \le2B_\tau(C).
+\]
+The first inequality holds for every $r\in C$.
+\end{lemma}
+\begin{proof}
+At a fine layer the cut coefficient counts $s_\Pi(C)$. At a coarse
+layer the three summands count, respectively,
+$\sum_{B\ne B_a}p_Bq_B$, $r_{B_a}(c-p_{B_a})$, and $J_\Pi(C)$.
+For the lower inequality sum
+$b^\tau_{xy}\le b^\tau_{xr}+b^\tau_{ry}$ over internal unordered pairs.
+For the upper inequality sample $r$ mass-proportionally; the expectation
+of $c\sum_x\mu_xb^\tau_{rx}$ is exactly $2B_\tau(C)$.
+\end{proof}
+
+For $N>6$, enumerate every $(\tau,a,r,c)$ with $1\le\tau\le H$,
+$a,r\in X$, and integer $1\le c\le n$. The graph on $X\cup\{t\}$
+has pair capacities $\kappa^{\tau,a}_{xy}$ and terminal capacities
+$\ell^{\tau,a}_x+c\mu_xb^\tau_{rx}$ on $xt$.
+Require $a,r$ inside, $t$ and all $\lambda_x>\tau$ outside, exact selected
+mass $c$, and counts between $\lceil N/3\rceil$ and $\lfloor2N/3\rfloor$.
+Use a sampled tree and the two-index dynamic program of
+Lemma~\ref{lem:tree-dp}. Skip infeasible choices. Among returned sets choose
+the one of least exactly computed $\Gamma_{\tau,a}(C)$.
+Sample an independent mass-proportional execution anchor and use
+Lemma~\ref{lem:l1-recursion}.
+
+\begin{lemma}[Offline separator]\label{lem:slow-separator}
+For every feasible comparator $P$, the chosen separator has
+\[
+ \E D_\mu(Q,T_AQ)\le16\beta(n+1)D_\mu(Q,P).
+\]
+\end{lemma}
+\begin{proof}
+Let $C^*,\tau^*$ be the set of Lemma~\ref{lem:balanced} and put
+$B=D_\mu(Q,P)$. Lemma~\ref{lem:certificate} gives an anchor $a^*$ with
+$\Gamma_{\tau^*,a^*}(C^*)\le4B$. Choose $r^*$ as in
+Lemma~\ref{lem:medoid} and $c^*=\mu(C^*)$.
+At that enumerated tuple the graph objective dominates $\Gamma$ for
+every feasible set and is at most $2\Gamma(C^*)\le8B$ on the comparator.
+Tree domination and expected stretch bound the expected returned
+graph cost by $8\beta(n+1)B$. Selection does not increase its certificate,
+and the independent execution anchor costs at most twice that certificate.
+\end{proof}
+
+For $3\le N\le6$, enumerate proper non-singleton $C$, feasible $\tau$,
+and $a\in C$, selecting least $\Gamma$. This costs $O(q)$ time for each
+constant-size state: for each $C,a$, the birth scores are one prefix
+sum of fine terms plus one suffix sum of coarse terms.
+A compatible candidate and Lemma~\ref{lem:certificate} give expected edit
+at most $8D_\mu(Q,P)$. For $N=2$ scan feasible merge indices and minimize
+the single pair's disagreement; for $N=1$ return its leaf.
+
+\begin{theorem}[Combinatorial offline $L_1$]\label{thm:slow}
+There is a combinatorial $O(\log^2 n)$-approximation for $L_1$ in
+$\wt O(n^{10})$ time.
+\end{theorem}
+\begin{proof}
+Use the grid of all distinct input distances, so $q=O(n^2)$, and construct
+the guide of Section~\ref{sec:guide}. In this implementation store its
+partition labels explicitly. A direct scan of all input pairs at each
+layer constructs them in $O(qn^2)$ time and $O(qn)$ words, without
+record caps. By Lemmas~\ref{lem:slow-separator}
+and~\ref{lem:l1-recursion}, expected distance to any fixed nested
+comparator is multiplied by $O(\beta(n)\log n)=O(\log^2 n)$.
+Apply Lemmas~\ref{lem:guide} and~\ref{lem:grid}, and then the triangle
+inequality with the input relation in~\eqref{eq:cake}. This gives expected
+input cost $O(\log^2 n)\OPT_1$. Markov's inequality gives constant success;
+$O(\log n)$ independent trials and exact input-cost selection amplify it.
+For this expectation argument, use an ideal execution with correct
+external tree distributions. Each external failure is given an
+inverse-polynomial probability budget. The implemented execution agrees
+with the ideal execution until such a failure, so the sum of those
+budgets bounds the additional failure probability.
+
+For time, a state has $O(qnN^2)$ tuples. One graph has $O(N^2)$ edges.
+Its tree construction costs $\wt O(N^5)$, its two-index dynamic program
+costs $O(n^2N^3)$, and direct capacity computation costs $O(qN^2)$.
+For every fixed $s>1$, Lemma~\ref{lem:recursion-size} gives
+$\sum_vN_v^s=O(n^s)$, where $v$ ranges over states. Total time is therefore
+\[
+ \wt O\!\left(qn\sum_v(N_v^7+n^2N_v^5+qN_v^4)\right)
+ =\wt O(qn^8+q^2n^5)=\wt O(n^{10}).
+\]
+The small-state scans cost $O(qn)$ and cannot change the exponent.
+\end{proof}
+
+\section{The fast \texorpdfstring{$L_1$}{L1} separator}
+\label{sec:fast-l1}
+
+Define a second certificate, denoted only by $\mathcal H$, by
+\[
+ H_{\Pi,a}(C)=J_\Pi(C)+\sum_{B\ne B_a}p_Br_B+r_{B_a}(c-p_{B_a}),
+ \qquad
+ \mathcal H_{\tau,a}(C)=\sum_{i<\tau}w_is_{Q_i}(C)
+                   +\sum_{i\ge\tau}w_iH_{Q_i,a}(C).
+\]
+Let
+\[
+ k^\tau_{xy}=\mu_x\mu_y\sum_{i<\tau}w_i\join_{Q_i}(x,y),\quad
+ u^{\tau,a}_x=\mu_x\sum_{i\ge\tau}w_i
+  \bigl(\mu(Q_i(x))+\mu(Q_i(a))\bigr)\ind[Q_i(x)\ne Q_i(a)],
+\]
+\[
+ Z^\tau_a(C)=\sum_{x\in C}\mu_xb^\tau_{ax},\qquad
+ F_{\tau,a,\gamma}(C)=k^\tau(\cut C)+u^{\tau,a}(C)+\gamma Z^\tau_a(C).
+\]
+Here $\gamma>0$ is an algorithm parameter.
+
+\begin{lemma}[The second certificate]\label{lem:unary}
+For all $C\ni a$, $\Gamma_{\tau,a}(C)\le\mathcal H_{\tau,a}(C)$ and
+\[
+ \mathcal H_{\tau,a}(C)=k^\tau(\cut C)+u^{\tau,a}(C)+B_\tau(C).
+\]
+For a compatible comparator $P$,
+$\E_{a\sim\mu|_C}\mathcal H_{\tau,a}(C)\le6D_\mu(Q,P)$.
+Moreover $F_{\tau,a,\gamma}(C)\ge\mathcal H_{\tau,a}(C)$ if
+$\gamma\ge\mu(C)$.
+\end{lemma}
+\begin{proof}
+The first assertion replaces $q_B$ by $r_B\ge q_B$ in nonanchor blocks.
+The displayed representation follows by counting each block contribution.
+Averaging over $a$ gives the coarse value
+$J_\Pi(C)+2\sum_Bp_Br_B(1-p_B/c)$.
+Its excess over expected exact edit is
+$2\sum_Bp_B^2(1-p_B/c)\le4J_\Pi(C)$.
+Expected exact edit is at most $2D_\mu(Q,P)$ by
+Lemma~\ref{lem:projection}; the weighted internal sum of $J$ is at most
+$D_\mu(Q,P)$. Finally the triangle inequality for $b^\tau$ gives
+$B_\tau(C)\le\mu(C)Z^\tau_a(C)$.
+\end{proof}
+
+A cut graph for $F$ uses pair capacities $k^\tau_{xy}$ and capacities
+$u^{\tau,a}_x+\gamma\mu_xb^\tau_{ax}$ on edges $xt$, with $a$ inside
+and $t$ outside. Replace $k^\tau$ by $\bar k^\tau$ of
+Lemma~\ref{lem:prefix-core} and denote the result by $\bar F$.
+Then $F\le\bar F\le2F$ on every set.
+
+\begin{lemma}[Mass penalty scan]\label{lem:mass}
+Suppose a cut procedure has factor $\alpha\ge1$ against every
+narrow-balanced pinned comparator and returns a wide-balanced pinned set.
+For a nonnegative cut objective $f$ and a bound $U>0$, a geometric scan
+of penalties $\lambda\mu(C)$ produces, for every eligible $C^*$ with
+$\mu(C^*)\le U$, a candidate satisfying
+\[
+ \mu(C)\le2\alpha U,\qquad f(C)\le3\alpha f(C^*).
+\]
+The scan has polylogarithmic length under the encoding assumptions.
+\end{lemma}
+\begin{proof}
+Its comparison inequality is
+$f(C_\lambda)+\lambda\mu(C_\lambda)
+ \le\alpha(f(C^*)+\lambda U)$.
+Let $\Delta$ be the smallest positive graph coefficient of $f$ and let
+$f_{\max}$ be their sum. Start at $\lambda_0=\Delta/(4\alpha U)$
+and double until the first returned set has mass at most $2\alpha U$.
+Stop unsuccessfully after passing $2f_{\max}/U$; an eligible comparator
+guarantees a passing set by then.
+If the initial value passes, its cost is at most
+$\alpha f(C^*)+\Delta/4$. When $f(C^*)>0$ this is at most
+$3\alpha f(C^*)$, since $f(C^*)\ge\Delta$. When $f(C^*)=0$,
+the output cost is less than $\Delta$ and therefore zero, and its mass
+is at most $\alpha U$.
+Otherwise the failed preceding value at $\lambda/2$ has mass greater
+than $2\alpha U$. Its comparison inequality implies
+$\lambda U<2f(C^*)$, which gives $f(C_\lambda)<3\alpha f(C^*)$.
+If all coefficients vanish, use $\lambda=1$.
+The ratio of endpoints of the scan has a polylogarithmic-bit logarithm.
+Each penalty is represented by adding $\lambda\mu_x$ to capacity $xt$.
+\end{proof}
+
+Fix a global upper bound $\alpha$ for the chosen cut procedure.
+Use Lemma~\ref{lem:fast-cut} for the fast implementation.
+The polynomial-time combinatorial implementation instead uses
+Lemma~\ref{lem:tree-dp}, amplified to factor $\alpha=O(\log n)$.
+Its exact narrow balance also satisfies the stated wide balance.
+
+For a state with $N>16$, enumerate all atoms of mass greater than one.
+In addition take $C_1\log(n+1)$ independent uniform samples from its
+unit-mass atoms, or enumerate those atoms if fewer exist. These are the
+\emph{certificate anchors}. For each anchor $a$, each
+$\lambda_a\le\tau\le H$, and each dyadic mass bound
+$U\in\{1,2,4,\ldots,2^{\lceil\log_2n\rceil}\}$, do the following:
+\begin{enumerate}[label=(\arabic*)]
+\item Set $\gamma=2\alpha U$ and build the graph for
+$f=\bar F_{\tau,a,\gamma}$.
+\item Pin $a$ inside and $t$ and every atom with $\lambda_x>\tau$ outside.
+Use the mass penalty scan of Lemma~\ref{lem:mass}, comparing to counts
+in $[N/3,2N/3]$ and accepting counts only in $[N/8,7N/8]$.
+\item Retain a returned set only when its mass is at most $2\alpha U$.
+\end{enumerate}
+Select the retained candidate of least $\bar F$ value.
+If no candidate is valid, mark the trial failed.
+After selection draw a fresh mass-proportional execution anchor and
+use the recursion of Lemma~\ref{lem:l1-recursion}.
+Small states use the enumerations after Lemma~\ref{lem:slow-separator},
+with $\mathcal H$ in place of $\Gamma$.
+
+\begin{lemma}[Few anchors and separator bound]\label{lem:fast-separator}
+At depth $j$ there are at most $j$ non-unit-mass atoms.
+There are $O(\log n)$ certificate anchors per state. Except with
+inverse-polynomial probability, for every fixed current comparator $P$,
+the selected candidate satisfies
+\[
+ \bar F(C)\le168\alpha^2D_\mu(Q,P),\qquad
+ \E_A D_\mu(Q,T_AQ)\le336\alpha^2D_\mu(Q,P).
+\]
+\end{lemma}
+\begin{proof}
+The root has no non-unit atom. An inside child takes a subset; an outside
+child introduces one new contracted atom. Thus the number increases
+by at most one per depth. The wide balance gives child sizes at most
+$7N/8+1\le15N/16$ for $N>16$, so depth is $O(\log n)$.
+
+Choose the compatible $C^*,\tau^*$ of Lemma~\ref{lem:balanced}, write
+$c=\mu(C^*)$ and $B=D_\mu(Q,P)$, and choose $c\le U<2c$.
+For a mass-proportional anchor in $C^*$,
+\[
+ \E_a Z^{\tau^*}_a(C^*)=2B_{\tau^*}(C^*)/c.
+\]
+Together with Lemma~\ref{lem:unary} and $\gamma<4\alpha c$ this yields
+$\E_a F_{\tau^*,a,\gamma}(C^*)\le14\alpha B$.
+Call an anchor good when $F_{\tau^*,a,\gamma}(C^*)\le28\alpha B$.
+Good anchors have mass at least $c/2$, and cut preservation implies
+$\bar F(C^*)\le56\alpha B$ for each good anchor. This good-anchor
+set is defined by exact coefficients and is independent of the graph
+sampling used to approximate them. For $B=0$ every positive-mass
+anchor is good and has zero score.
+If a good anchor is non-unit it is enumerated. Otherwise there are at
+least $c/2\ge N/6$ good unit atoms, and each uniform unit-atom sample
+hits one with probability at least $1/6$.
+The chosen logarithmic sample size suffices.
+For its enumerated tuple Lemma~\ref{lem:mass} gives mass at most $\gamma$
+and cost at most $168\alpha^2B$. Selection cannot increase the score.
+The execution bound follows from
+$\Gamma\le\mathcal H\le F\le\bar F$ and
+Lemma~\ref{lem:certificate}.
+\end{proof}
+
+\begin{lemma}[Representing all recursive guide partitions]\label{lem:reps}
+Assign to each atom $x$ an original representative $r_x\in V$.
+Initially $r_x=x$. At a real layer $1\le i\le q$ its guide label is
+\[
+ \ell_i(x)=
+ \begin{cases}
+  \mathtt{all},&i\ge H,\\
+  (\mathtt{private},x),&i<\lambda_x,\\
+  (\mathtt{root},g_{\theta_{i-1}}(r_x)),&\lambda_x\le i<H.
+ \end{cases}
+\]
+The tags make the three types distinct. The inside child inherits
+representatives and upper index $\tau$. The contracted atom in the
+outside child has representative $r_A$ and release $\tau$.
+These labels give exactly the projected guide sequence.
+One layer costs $\wt O(N)$ time and $O(N)$ additional space to report.
+\end{lemma}
+\begin{proof}
+Induct on recursive operations. Inside restriction keeps fine relations
+and becomes indiscrete at its upper index. Outside contraction is private
+below $\tau$. At $\tau\le i<H$ the anchor is released, so its old label is
+its root label, and the contracted atom joins exactly its old outside
+anchor-block atoms. Unreleased outside atoms have private labels and remain
+singletons. At $i\ge H$ everything is indiscrete. This is precisely
+the projection definition. Two predecessor queries evaluate each root
+label. Group equal labels by sorting. No ancestor partitions are stored.
+\end{proof}
+
+\begin{theorem}[The fast $L_1$ algorithm and the combinatorial one-pass $L_1$ algorithm]\label{thm:direct-l1}
+The fast implementation has approximation $O(\log^5 n)$ in offline
+time $\wt O(n^2)$ and in one-pass space $\wt O(n)$ with total update and
+postprocessing time $\wt O(n^2)$ each.
+The combinatorial implementation has approximation $O(\log^3 n)$
+in one-pass space $\wt O(n)$ and polynomial time.
+\end{theorem}
+\begin{proof}
+By Lemmas~\ref{lem:fast-separator} and~\ref{lem:l1-recursion}, expected
+distance from the guide to the output is at most $O(\alpha^2\log n)$
+times distance from the guide to a best feasible nested sequence.
+To state the transfer to the input explicitly, fix an optimal
+ultrametric $u^*$. Lemma~\ref{lem:grid} supplies a feasible grid sequence
+$\widehat P$ with $D(Q,\widehat P)\le D(Q,P_{u^*})$. Hence
+Lemma~\ref{lem:guide} and the triangle inequality give
+\[
+ \E L_1(d,R)
+ \le \E D(G,Q)+\E D(Q,R)
+ \le 7\OPT_1+O(\alpha^2\log n)\,8\OPT_1
+ =O(\alpha^2\log n)\OPT_1,
+\]
+where $R$ is the output ultrametric, identified in $D(Q,R)$ with its
+threshold partition sequence. Analyze an ideal execution that replaces a failed
+separator by an existing valid one and then draws its fresh execution
+anchor. There are polynomially many calls; each has a small conditional
+failure probability. Coupling the implementation and ideal execution
+until the first failure makes divergence inverse-polynomial.
+This argument does not condition an anchor on future successful calls.
+The same coupling treats record caps and graph compression failures.
+
+Use $K=O(\log n)$ independent trials. Markov's inequality gives constant
+success per ideal trial; the coupling preserves it up to inverse-polynomial
+error. Select by exact cost offline, or by Lemma~\ref{lem:cost-sketch}
+with $\varepsilon=1/8$ in streaming. The input sketch is independent
+of the trials and is valid simultaneously for all candidates, so it can
+be shared. This gives high-probability approximation.
+If $\OPT_1=0$, the relevant nonnegative ideal expectations are zero,
+so this argument includes that case.
+
+For the fast time bound use the record grid, $q=\wt O(n)$.
+At a state, accumulate the suffix arrays $b^\tau_{ax}$ and
+$u^{\tau,a}_x$ for all $O(\log n)$ tried anchors by one sweep.
+A forward sweep subtracts one layer at a time from these suffix arrays
+and adds that layer's product cliques to the prefix graph of
+Lemma~\ref{lem:prefix-core}. Each layer costs $\wt O(N)$.
+At each birth, all mass guesses and penalty scans give only
+polylogarithmically many cut calls on graphs with $\wt O(N)$ edges.
+Thus state work is $\wt O(qN)$ and workspace is $\wt O(N)$.
+At any depth, the potential $N-1$ is additive, since child counts are
+$k,N-k+1$. The sum of nontrivial state counts at that depth is at most
+$2(n-1)$. Hence $\sum_vN_v=O(n\log n)$, and total work is
+$\wt O(qn)=\wt O(n^2)$.
+
+Process states depth first, discarding working arrays before forming
+children. The atom lists on the current path and deferred siblings use
+$O(n)$ space because counts decrease geometrically apart from constant
+small-state depth. Original record maps, the grid, current cut graphs,
+suffix arrays, and output trees use $\wt O(n)$ words.
+Before the pass choose the trial permutations, update their lists at
+both endpoints of each record, and update $H_{\mathrm{in}},D_0,M$,
+where $H_{\mathrm{in}}$ is the graph of Theorem~\ref{thm:prefix}.
+Lemmas~\ref{lem:records} and~\ref{thm:prefix} give total update time
+$\wt O(n^2)$ and the stated space. All subsequent guide queries use
+stored representatives.
+
+For the combinatorial implementation use the same procedure and arrays,
+but the polynomial-time, linear-space tree cut procedure of
+Lemma~\ref{lem:tree-dp}. Its $\alpha=O(\log n)$ gives the factor
+$O(\log^3 n)$. Every graph passed to it has $\wt O(N)$ edges.
+There are polynomially many calls, and its space is $\wt O(N)$.
+No random computation is replayed. The explicit clique sampling in
+Lemma~\ref{lem:prefix-core} uses arithmetic and sampling only.
+\end{proof}
+
+
+\section{A compact matrix for squared error}
+\label{sec:l2-input}
+
+Use the same permutation, functions, and records as in
+Section~\ref{sec:guide}. Define a symmetric matrix with zero diagonal by
+\begin{equation}\label{eq:bar-matrix}
+ \bar d_{xy}=\int_0^M\ind[g_t(x)\ne g_t(y)]\,dt.
+\end{equation}
+Thus $0\le\bar d_{xy}\le M$. The matrix is not required to be an
+ultrametric. For each vertex $r$ define
+\[
+ \beta_r=\min\{d_{rw}:\pi(w)<\pi(r)\},
+\]
+with the minimum of the empty set interpreted as $+\infty$.
+Then $r$ is a center exactly for $t<\beta_r$. The value $\beta_r$ is
+the key of the first record in the list for $r$ whose selected vertex
+is not $r$, or $+\infty$ if that record does not exist. Thus it is
+obtained from stored data.
+On a record interval where $f_t(v)=r$, its label is $r$ before $\beta_r$
+and $v$ afterwards. Splitting that interval at $\beta_r$ if necessary
+therefore gives $O(\log n)$ intervals of constant $g_t(v)$ on every
+successful capped execution. The distance $\bar d_{xy}$ is evaluated
+by merging the two lists of intervals and summing the lengths on which
+their labels differ. This costs $O(\log n)$ time and constant additional
+workspace. Every entry is an integer in the arithmetic model of
+Section~\ref{sec:definitions}. No dense matrix is needed.
+
+Fix an ultrametric comparator $P$ independently of $\pi$, with entries
+in $[0,M]$, and put $B=L_2(d,P)$. An \emph{input error interval} of a pair
+$e$ is the interval between $d_e$ and $P_e$, with its endpoints removed
+or added arbitrarily; it has length $|d_e-P_e|$.
+
+
+Put $L=\lceil C_2\log(n+1)\rceil$, for a sufficiently large constant
+$C_2$. For $v\in V$, let $F_v=\{f_t(v):0\le t<M\}$ and let $R_v$
+be the set of minimum-ranked vertices of the comparator blocks containing
+$v$, over $0\le t<M$. Define $\mathcal E$ to be the event that all input-prefix
+record lists meet their caps and $|F_v|,|R_v|\le L$ for every $v$.
+
+\begin{lemma}[Compact squared-error guide]\label{l2:lem:denoise}
+The event $\mathcal E$ holds with high probability. On this event the stored records agree with the construction without record caps, and
+\[
+ \E_\pi\bigl[\ind[\mathcal E] L_2(\bar d,P)\bigr]
+ \le O(\log^2 n)B.
+\]
+The event is used through its indicator, not by conditioning the permutation distribution.
+\end{lemma}
+
+\subsection{A witness for every disagreement}
+
+At threshold $t$, the comparator block containing $v$ is $\{x:P_{vx}\le t\}$. Write $Q_t=Q(t)$.
+An input pair $e$ is erroneous at $t$ when $t$ lies between $d_e$ and
+$P_e$. Its erroneous-time interval has length $|d_e-P_e|$.
+Every pairwise disagreement between $Q_t$ and the comparator partition
+has such an input witness of one of four forms.
+
+If $x,y$ are in a comparator block $C$ but have different guide labels,
+let $r=\arg\min_{v\in C}\pi(v)$.
+\begin{enumerate}[label=(\roman*),leftmargin=*]
+\item If $r$ is a center, choose $v\in\{x,y\}$ whose label is not $r$.
+If $d_{vr}>t$, witness $vr$: $P_{vr}\le t<d_{vr}$.
+\item Still suppose $r$ is a center, but $d_{vr}\le t$. Choose the same endpoint $v$ with label different from $r$. Its selected neighbor $w=f_t(v)$ has
+$\pi(w)<\pi(r)$, so $w\notin C$ and $d_{vw}\le t<P_{vw}$.
+Witness $vw$.
+\item If $r$ is not a center, let $w_r=f_{\beta_r}(r)$, its fixed
+first lower-ranked selected neighbor. Then $w_r\notin C$,
+$\pi(w_r)<\pi(r)$, and $d_{rw_r}=\beta_r\le t<P_{rw_r}$.
+Witness $rw_r$. This one witness works for every later failure of $r$.
+\end{enumerate}
+If $x,y$ have the same guide label $r$ but are in different comparator
+blocks, $r$ is a center and both are positively adjacent to it. At
+least one endpoint $v$ is outside the comparator block of $r$.
+This is the fourth form: witness $vr$, with $d_{vr}\le t<P_{vr}$.
+For each unordered pair and each interval of the finite common input and comparator grid, choose the first applicable form and the lexicographically first possible witness within that form. Let $W_{xy}$ be the set of
+witnesses selected for output pair $xy$ over all times.
+
+\subsection{Few witnesses per output pair}
+
+Comparator blocks containing $v$ form a fixed nested chain. Ordering
+their newly added vertices by fixed ID reduces its minima to the same
+left-to-right record calculation as above. Thus, simultaneously,
+\[
+ |F_v|\le L,\quad |R_v|\le L\qquad(v\in V)
+\]
+except with inverse-polynomial probability, by the exponential-moment argument of Lemma~\ref{lem:records}. This also proves the asserted probability of $\mathcal E$.
+The four witness forms lie among
+\[
+ \{vr:r\in R_v,\ v\in\{x,y\}\},\quad
+ \{vw:w\in F_v,\ v\in\{x,y\}\},\quad
+ \{rw_r:r\in R_x\cup R_y,\ \beta_r<+\infty\}.
+\]
+Consequently $|W_{xy}|\le O(L)$ on $\mathcal E$.
+Integration and Cauchy--Schwarz give
+\begin{equation}\label{l2:eq:witness-square}
+ |\bar d_{xy}-P_{xy}|^2
+ \le |W_{xy}|\sum_{e\in W_{xy}}|d_e-P_e|^2.
+\end{equation}
+
+\subsection{Few output pairs in expectation per input witness}
+
+Write $A_e=|\{xy:e\in W_{xy}\}|$. We show
+$\E A_e=O(\log n)$, without conditioning on $\mathcal E$.
+All sizes below are maximized over the indicated nested block chains.
+
+For form (i), orient $e=vr$. All charged output pairs are $vy$ with
+$y$ in a comparator block containing $r$ whose minimum is $r$.
+Let $T_r$ be the largest size of such a block. If $T_r\ge k$, $r$ is
+minimum in the first block of its chain of size at least $k$; hence
+$\Prb[T_r\ge k]\le1/k$, and $\E T_r\le1+\log n$.
+
+For form (ii), orient $e=vw$. Charged pairs are $vy$ inside a block
+$C$ containing $v$, excluding $w$, with $w$ preceding every vertex of
+$C$. For the largest such size $T_{v,w}$,
+\[
+ \Prb[T_{v,w}\ge k]\le1/(k+1),\qquad
+ \E T_{v,w}=O(\log n).
+\]
+Indeed, at the first eligible fixed block of size at least $k$, $w$
+must be first among that block and $w$.
+
+For form (iii), orient $e=rw$. Charged output pairs lie inside a block
+$C$ containing $r$, excluding $w$, where $r$ is minimum in $C$ and
+$w$ precedes $r$. If $T$ is the largest such block size, the first
+eligible fixed block of size $s\ge k$ requires $w$ first and $r$ second
+among its $s+1$ vertices. Therefore
+\[
+ \Prb[T\ge k]\le\frac1{k(k+1)},\qquad
+ \E T^2=\sum_{k=1}^n(2k-1)\Prb[T\ge k]=O(\log n).
+\]
+There are at most $T^2/2$ charged unordered output pairs. An empty eligible chain is assigned size zero in each of these maximum-size definitions.
+
+For the fourth form, orient $e=vr$. Every charged pair is $vy$ inside
+the closed positive neighborhood of center $r$. These neighborhoods
+grow in a fixed order as $t$ increases, and $r$ must be their minimum.
+Define $K_r$ as the maximum size of this neighborhood while $r$ is
+a center, and put $K_r=0$ if there is no such threshold. Then
+$\Prb[K_r\ge k]\le1/k$, so $\E K_r=O(\log n)$.
+Summing the four bounds and both orientations proves $\E A_e=O(\log n)$.
+
+\begin{proof}[Conclusion of Lemma~\ref{l2:lem:denoise}]
+Sum \eqref{l2:eq:witness-square} over output pairs on $\mathcal E$ and
+then take expectation. Since all terms are nonnegative,
+\[
+ \E[\ind[\mathcal E]L_2(\bar d,P)]
+ \le O(L)\sum_e |d_e-P_e|^2\E A_e
+ =O(\log^2 n)B.
+\]
+The comparator is fixed independently of $\pi$. Random grid endpoints
+are not conditioned on, and the event's indicator is never moved
+inside a conditional permutation distribution.
+\end{proof}
+
+\section{The squared-error recursion on an implicit matrix}
+
+This section applies to any symmetric matrix $\mathsf D^0$ with zero diagonal and entries in $[0,M]$, evaluable per pair in polylogarithmic time, including $\mathsf D^0=\bar d$. The term pair query means evaluation of one specified matrix entry.
+At a state, let $X$ be its $N$ atoms, with integer masses $\mu_x\ge1$,
+real release heights $0\le\lambda_x\le H$, upper height $0\le H\le M$, and original representatives $r_x\in V$. Release heights in this section are real heights, not the layer indices of Section~\ref{sec:projection}.
+Initially $\mu_x=1$, $\lambda_x=0$, $H=M$, and $r_x=x$.
+The state input is
+\begin{equation}\label{l2:eq:state-input}
+ \mathsf D_{xy}=\min\{H,\max\{\lambda_x,\lambda_y,\mathsf D^0_{r_xr_y}\}\}
+ \quad(x\ne y),\qquad \mathsf D_{xx}=0.
+\end{equation}
+A feasible comparator is an ultrametric $P$ with
+$\max\{\lambda_x,\lambda_y\}\le P_{xy}\le H$ for $x\ne y$.
+For state matrices use the weighted squared distance
+\[
+ B_\mu(\mathsf D,P)=\sum_{xy\in\binom X2}\mu_x\mu_y(\mathsf D_{xy}-P_{xy})^2.
+\]
+Total mass is at most $n$. Atom-count balance is always a condition
+on $|C|$, independently of $\mu(C)$.
+
+\subsection{Clamped projection and representatives}
+
+For $\varnothing\ne C\subsetneq X$, $c=\mu(C)$,
+$\max_{x\in C}\lambda_x\le\tau\le H$, and $A\in C$, define
+\[
+ (T_{C,\tau,A}\mathsf D)_{xy}=
+ \begin{cases}
+ \min(\mathsf D_{xy},\tau),&x,y\in C,\\
+ \max(\mathsf D_{Ay},\tau),&x\in C,\ y\notin C,\\
+ \mathsf D_{xy},&x,y\notin C,
+ \end{cases}
+\]
+with symmetry in the cross case and zero diagonal. We call $\tau$ the
+birth height of $C$. As in Section~\ref{sec:projection}, a separator
+is a pair $(C,\tau)$ with $2\le |C|\le N-1$ satisfying the displayed
+release and upper-height inequalities. In this section $T$ abbreviates $T_{C,\tau,A}$ only when the set, height, and execution anchor are fixed.
+The inside child has the atoms of $C$, unchanged masses, releases,
+representatives, and upper height $\tau$. The outside child replaces
+$C$ by $z$ of mass $c$, release $\tau$, representative $r_A$, and
+inherits upper height $H$. Formula \eqref{l2:eq:state-input} is preserved:
+the inside update clips at $\tau$, and the outside cross update is
+$\max\{\mathsf D_{Ay},\tau\}$, with $\lambda_A\le\tau$.
+
+\begin{lemma}[Squared nonexpansion]\label{l2:lem:nonexpand}
+For arbitrary state matrices $\mathsf D,P$, and a fresh anchor with
+$\Prb[A=x]=\mu_x/c$,
+\[
+ \E_A B_\mu(T\mathsf D,TP)\le B_\mu(\mathsf D,P).
+\]
+If $P$ is feasible, $TP$ is a feasible ultrametric for the two children
+and their substitution. Their weighted errors sum to $B_\mu(T\mathsf D,TP)$.
+\end{lemma}
+\begin{proof}
+For real $z,z^\prime$, both $|\min(z,\tau)-\min(z^\prime,\tau)|$ and $|\max(z,\tau)-\max(z^\prime,\tau)|$ are at most $|z-z^\prime|$. Internal errors decrease.
+For each outside $y$, the expected cross error is at most
+\[
+ \E_A[c\mu_y(\mathsf D_{Ay}-P_{Ay})^2]
+ =\sum_{x\in C}\mu_x\mu_y(\mathsf D_{xy}-P_{xy})^2.
+\]
+Outside errors are unchanged. For ultrametricity, internal distances
+are at most $\tau$, and each outside vertex has a common distance to
+$C$, at least $\tau$. For outside $y,w$, the ultrametric inequalities
+for the triple $A,y,w$ remain valid after flooring both anchor
+distances at $\tau$. Releases and upper bounds follow from the stated
+birth constraint. Internal, cross, and outside pair scopes are disjoint,
+which proves additivity of child errors.
+\end{proof}
+
+Call $C$ compatible with $P$ at $\tau$ when internal distances are at
+most $\tau$, cross distances are at least $\tau$, and, for every outside
+$y$, $P_{xy}$ is constant over $x\in C$. Then $TP=P$ for every anchor, using the projection defined in this section.
+Every feasible ultrametric with $N>16$ has such a set with
+$N/3\le |C|\le2N/3$. Descend through a child of size greater than
+$2N/3$ until none exists; choose a child in $[N/3,2N/3]$, or accumulate
+children smaller than $N/3$ until their union first reaches $N/3$.
+Use that node's height as the birth for a union, or the chosen child's
+height. Releases are at most this height. For $3\le N\le16$, a proper
+compatible set with $2\le |C|\le N-1$ exists by the same hierarchy argument.
+
+\subsection{A variance certificate represented by a cut}
+
+Put $h^\tau_{xw}=\max(\mathsf D_{xw},\tau)$, including $h^\tau_{xx}=\tau$,
+and define
+\begin{align*}
+ b^{\tau,2}_{xa}&=\sum_{w\in X}\mu_w(h^\tau_{xw}-h^\tau_{aw})^2,\\
+ k^{\tau,2}_{xy}&=\mu_x\mu_y(\tau-\mathsf D_{xy})_+^2,\\
+ u^{\tau,a,2}_x&=\mu_x b^{\tau,2}_{xa},\qquad
+ Z^{\tau,2}_a(C)=\sum_{x\in C}\mu_x(\mathsf D_{ax}-\tau)_+^2,\\
+ \mathcal J_{\tau,a}(C)&=k^{\tau,2}(\cut C)+u^{\tau,a,2}(C)+\mu(C)Z^{\tau,2}_a(C).
+\end{align*}
+For $\gamma\ge\mu(C)$, the
+graph-cut objective
+\begin{equation}\label{l2:eq:F}
+ F^{(2)}_{\tau,a,\gamma}(C)
+ =k^{\tau,2}(\cut C)+u^{\tau,a,2}(C)+\gamma Z^{\tau,2}_a(C)
+\end{equation}
+dominates $\mathcal J$. Pair edges have capacities $k^{\tau,2}_{xy}$;
+an edge from $x$ to a forced-out dummy sink has capacity
+$u^{\tau,a,2}_x+\gamma\mu_x(\mathsf D_{ax}-\tau)_+^2$.
+
+\begin{lemma}[Certificate dominates expected squared edit]\label{l2:lem:edit}
+For every certificate anchor $a\in C$ and fresh execution anchor
+$\Prb[A=x]=\mu_x/c$,
+\[
+ \E_A B_\mu(\mathsf D,T_{C,\tau,A}\mathsf D)\le6\mathcal J_{\tau,a}(C).
+\]
+\end{lemma}
+\begin{proof}
+For internal pairs,
+$(\mathsf D_{xy}-\tau)_+\le|h^\tau_{xy}-h^\tau_{ay}|+(\mathsf D_{ay}-\tau)_+$.
+Write $k=k^{\tau,2}(\cut C)$, $u=u^{\tau,a,2}(C)$, and
+$Z=Z^{\tau,2}_a(C)$ for this proof. Squaring and summing over unordered
+internal pairs bounds the internal edit by $2u+2cZ$.
+For cross pairs, first floor $\mathsf D_{xy}$ at $\tau$, giving at most
+$2k^{\tau,2}(\cut C)$ plus twice the row-difference contribution.
+For each outside $y$, put
+$m_y=c^{-1}\sum_{x\in C}\mu_xh^\tau_{xy}$.
+Expanding squares gives
+$\E_A\sum_{x\in C}\mu_x(h^\tau_{xy}-h^\tau_{Ay})^2
+=2\sum_{x\in C}\mu_x(h^\tau_{xy}-m_y)^2$.
+The choice $m_y$ minimizes the sum of squared deviations, so
+\[
+ \E_A\sum_{x\in C}\mu_x(h^\tau_{xy}-h^\tau_{Ay})^2
+ \le2\sum_{x\in C}\mu_x(h^\tau_{xy}-h^\tau_{ay})^2.
+\]
+Thus cross edit is at most $2k+4u$. The total is at most
+$2k+6u+2cZ\le6\mathcal J$.
+\end{proof}
+
+\section{Only linearly many birth candidates per anchor}
+
+For a certificate anchor $a$, use
+\[
+ \mathcal T_a=\{0,H\}\cup\{\lambda_x:x\in X\}
+                 \cup\{\mathsf D_{ax}:x\in X\}.
+\]
+Its size is $O(N)$. Unlike a grid of all pair distances, this keeps
+the number of cut calls nearly linear per state.
+
+\begin{lemma}[Rounding to an anchor row]\label{l2:lem:round}
+Let $C$ be compatible with $P$ at $\tau_0$, $c=\mu(C)$, and
+$B=B_\mu(\mathsf D,P)$. For each $a\in C$, let $\tau_a$ be the nearest point
+of $\mathcal T_a$ to $\tau_0$, choosing the smaller point in a tie. Then it is a valid birth for $C$ and
+\[
+ \E_{a\sim\mu|_C}\mathcal J_{\tau_a,a}(C)\le54B.
+\]
+\end{lemma}
+\begin{proof}
+If $\tau_0$ is not a grid point, let $l<\tau_0<r$ be its adjacent
+grid points. No $\mathsf D_{aw}$ lies in $(l,r)$. All included releases lie
+at most at $l$, since they are grid points, and $r\le H$.
+Let $e_{aw}=\mathsf D_{aw}-P_{aw}$ and let $P'$ be the projection of $P$ at
+$\tau_a$, which is independent of execution anchor because the old
+cross distances are constant on $C$.
+
+If rounding down to $l$, an affected internal pair has
+$l<P_{xy}\le\tau_0$. Ultrametricity gives an endpoint $z\in\{x,y\}$
+with $P_{az}\ge P_{xy}$. If $\mathsf D_{az}\le l$, its error is at least
+$P_{xy}-l$. If $\mathsf D_{az}\ge r$, its error is at least
+$r-\tau_0\ge\tau_0-l\ge P_{xy}-l$.
+If rounding up to $r$, an affected cross pair has
+$\tau_0\le P_{xy}<r$ and $P_{ay}=P_{xy}$. If $\mathsf D_{ay}\ge r$, its
+error is at least $r-P_{xy}$. If $\mathsf D_{ay}\le l$, its error is at least
+$\tau_0-l\ge r-\tau_0\ge r-P_{xy}$.
+These arguments also apply to the affected anchor-row entries. Hence
+\begin{equation}\label{l2:eq:round-cost}
+ B_\mu(P,P')\le c\sum_w\mu_w e_{aw}^2,
+ \qquad |P'_{aw}-P_{aw}|\le|e_{aw}|.
+\end{equation}
+When $\tau_0$ is itself a grid point these bounds are immediate.
+Taking the mass-proportional average of the first bound gives at most
+$2B$, and therefore $\E B_\mu(\mathsf D,P')\le6B$.
+
+Since $P'$ is compatible at $\tau_a$, its cross distances are at least
+$\tau_a$, so $k^{\tau_a,2}(\cut C)\le B_\mu(\mathsf D,P')$.
+Its floored rows on $C$ are identical. Triangle inequality squared
+therefore gives
+\[
+ u^{\tau_a,a,2}(C)\le4B_\mu(\mathsf D,P')
+       +8c\sum_w\mu_w e_{aw}^2.
+\]
+Also $cZ^{\tau_a,2}_a(C)\le4c\sum_{x\in C}\mu_xe_{ax}^2$.
+The expected bounds on the three terms are $6B$, $40B$, and $8B$.
+Their sum proves the claim.
+\end{proof}
+
+\section{Sparse cut instances and the separator algorithm}
+
+\subsection{The cut and mass procedures}
+Use Lemma~\ref{lem:fast-cut} with its factor $\alpha=O(\log^2 n)$,
+comparing to counts in $[N/3,2N/3]$ and accepting counts in $[N/8,7N/8]$.
+An atom with $\lambda_x>\tau$ is forced outside by contracting it into the
+additional sink and retaining its count. All returned constraints are checked.
+For an intended mass bound $U$, Lemma~\ref{lem:mass} applied to the cut
+objective $f$ gives
+\begin{equation}\label{l2:eq:mass-penalty}
+ \mu(C)\le2\alpha U,\qquad f(C)\le3\alpha f(C^*)
+\end{equation}
+for every eligible $C^*$ of mass at most $U$.
+
+\subsection{Sparsifying the squared-error cut graph}
+
+Generate the $N(N-1)/2$ state pairs through \eqref{l2:eq:state-input},
+with keys $\mathsf D_{xy}$ and capacities $\mu_x\mu_y$.
+Construct a $(1\pm1/4)$ all-threshold cut sketch $K$ with
+$\wt O(N)$ retained edges. Each retained edge keeps its key and its
+new integer capacity. Scale by $4/3$ for domination.
+For every $\tau$, give a retained edge of key $z$ and scaled capacity
+$a$ the capacity $a(\tau-z)_+^2$. This graph satisfies simultaneously
+\begin{equation}\label{l2:eq:hinge-sketch}
+ k^{\tau,2}(\cut C)\le\bar k^{\tau,2}(\cut C)\le2k^{\tau,2}(\cut C).
+\end{equation}
+Indeed,
+$(\tau-z)_+^2=\int_0^\tau2(\tau-t)\ind[z\le t]\,dt$.
+Integrate the nonnegative prefix-cut inequalities against this kernel.
+
+Use Theorem~\ref{thm:prefix} with vertices $X$ and global failure
+parameter $n^{-a}$ for a sufficiently large fixed $a$. The number of
+sampled forests uses $\log n$, so it also covers small states. Its
+resource bound is $\widetilde O(N)$ space and $\widetilde O(1)$ update
+time per generated unit-capacity pair.
+
+For weighted pairs, write $\mu_x\mu_y$ in binary and run the unweighted
+routine on each bit layer, scaling its output by that bit's power of
+two. Summing bit-layer inequalities preserves the same relative error.
+There are $O(\log n)$ layers. Generate their pairs again from the
+implicit matrix, instead of storing a dense input. This gives
+$\wt O(N^2)$ time and $\wt O(N)$ space for the state sketch, with
+inverse-polynomial failure probability. Generated pair capacities have $O(\log n)$ bits; sampling exponents also have $O(\log n)$ bits, so the resulting capacities have polylogarithmic encodings.
+
+\subsection{Approximating row norms by random signs}
+
+The random-sign Johnson--Lindenstrauss theorem says that a map
+$z\mapsto r^{-1/2}(\sum_i\sigma_{ij}z_i)_{j=1}^r$, with independent
+uniform signs $\sigma_{ij}\in\{-1,1\}$, preserves all squared Euclidean
+norms in a fixed finite set of $n^{O(1)}$ vectors within $1\pm1/4$,
+with prescribed inverse-polynomial failure, for $r=C\log n$.
+Here $\|z\|_2^2=\sum_i z_i^2$. We use Theorem 1.1 of~\cite{Ach03}.
+This is an analysis of explicit sign sampling, not a linear-system call.
+
+Choose $r=O(\log n)$ fresh random-sign projection coordinates for the
+state, enough for its prescribed failure probability. Conceptually
+expand column $w$ into $\mu_w$ identical coordinates, and set
+\[
+ s_{w,j}=\sum_{i=1}^{\mu_w}\sigma_{w,i,j},
+ \qquad
+ V_{\tau,x,j}=\sum_{w\in X}s_{w,j}\max(\mathsf D_{xw},\tau),
+ \qquad \sigma_{w,i,j}\in\{-1,1\}.
+\]
+Signs are independent. Only the integer aggregates $s_{w,j}$ are
+stored. The random-sign Johnson--Lindenstrauss theorem \cite[Theorem 1.1]{Ach03} gives,
+simultaneously for every tried $(\tau,a,x)$,
+\[
+ (3/4)b^{\tau,2}_{xa}\le
+ \frac1r\sum_{j=1}^r(V_{\tau,x,j}-V_{\tau,a,j})^2
+ \le(5/4)b^{\tau,2}_{xa}.
+\]
+Define
+\[
+ \bar b^{\tau,2}_{xa}=\frac{4}{3r}\sum_{j=1}^r
+       (V_{\tau,x,j}-V_{\tau,a,j})^2,\qquad
+ \bar u^{\tau,a,2}_x=\mu_x\bar b^{\tau,2}_{xa}.
+\]
+Thus $b^{\tau,2}_{xa}\le\bar b^{\tau,2}_{xa}\le2b^{\tau,2}_{xa}$.
+Choose certificate anchors and their
+grids before these fresh signs; there are only polynomially many fixed
+vectors to preserve conditionally on the state input. The factor $r^{-1/2}$ is used only in the theorem: the implementation computes the displayed sum of squares divided by $r$, using rational arithmetic.
+
+Define $\bar F^{(2)}$ by \eqref{l2:eq:F} using $\bar k^{\tau,2}$, $\bar u^{\tau,a,2}$, and exact $Z^{\tau,2}_a$.
+For $\gamma\ge\mu(C)$ it dominates $\mathcal J_{\tau,a}(C)$. If
+$\mu(C^*)\le U<2\mu(C^*)$ and $\gamma=2\alpha U$, then
+\begin{equation}\label{l2:eq:surrogate-factor}
+ \bar F^{(2)}_{\tau,a,\gamma}(C^*)\le4\alpha\mathcal J_{\tau,a}(C^*).
+\end{equation}
+
+\subsection{Concrete separator procedure and its bound}
+
+For $N>16$, enumerate all atoms of mass greater than one, and, when
+unit-mass atoms exist, sample $C_c\log n$ of them uniformly and
+independently. They are
+certificate anchors. For each anchor $a$, each $\tau\in\mathcal T_a$
+with $\lambda_a\le\tau$, and each dyadic $U$ up to $2n$:
+\begin{enumerate}[leftmargin=*]
+\item Put $\gamma=2\alpha U$ and construct its sparse $\bar F^{(2)}$ graph.
+\item Force $a$ in, the dummy sink out, and all $\lambda_x>\tau$ out.
+Apply the geometric mass-penalty scan to this graph.
+\item Retain a valid result only if $\mu(C)\le\gamma$.
+Record its $\bar F^{(2)}$ value. After all calls, choose the cheapest
+retained candidate, including its birth $\tau$.
+\end{enumerate}
+Then sample an independent execution anchor $A$ mass-proportionally
+from $C$, and recurse on the two projected children.
+For $3\le N\le16$, enumerate all proper $C$ with $2\le|C|\le N-1$,
+all $a\in C$, and their valid anchor-grid births
+($\max_{x\in C}\lambda_x\le\tau\le H$), selecting minimum exact
+$\mathcal J$ before the independent execution draw. This is constant
+work apart from coefficient arithmetic. For $N=2$, return its sole
+input distance $\mathsf D_{12}$; for $N=1$, return its one leaf.
+
+\begin{lemma}[Separator guarantee]\label{l2:lem:separator}
+For every feasible comparator $P$, the chosen separator has
+\[
+ \E_A B_\mu(\mathsf D,T\mathsf D)\le O(\alpha^2)B_\mu(\mathsf D,P)
+\]
+except with the stated inverse-polynomial subroutine probability.
+The execution draw remains fresh and independent of separator selection.
+\end{lemma}
+\begin{proof}
+For a narrow-balanced compatible $C^*$, Lemma~\ref{l2:lem:round} gives
+mass at least $\mu(C^*)/2$ of anchors $a$ with
+$\mathcal J_{\tau_a,a}(C^*)\le108B$.
+If one is a non-unit atom, it is enumerated. Otherwise at least
+$\mu(C^*)/2\ge N/6$ are unit atoms, so the samples hit one with
+inverse-polynomially high probability. A matching dyadic $U$ exists.
+Equations \eqref{l2:eq:mass-penalty} and \eqref{l2:eq:surrogate-factor} give
+a returned $\bar F^{(2)}$ value at most $12\alpha^2\mathcal J_{\tau_a,a}(C^*)$.
+Its mass is at most $\gamma$, so its score dominates $\mathcal J$.
+The minimum over candidates is no larger. Lemma~\ref{l2:lem:edit} now
+bounds the independently executed squared edit.
+For small states, an enumerated compatible set and an anchor attaining
+the expectation bound of Lemma~\ref{l2:lem:round} give the same conclusion.
+The number of non-unit atoms at depth $d$ is at most $d$: initially
+none exist; an outside child adds only one, and an inside child retains
+only a subset. Thus only $O(\log n)$ anchors are tried per state.
+\end{proof}
+
+\section{Approximation of the recursive core and output selection}
+
+For $N>16$, child counts are $|C|$ and $N-|C|+1$. They are at most
+$15N/16$, since $N/8\le|C|\le7N/8$. Small states have only a constant
+number of further levels. Let $h=O(\log n)$ be total depth.
+
+\begin{theorem}[Squared-error core]\label{l2:thm:core}
+For any initial matrix $\mathsf D^0$ and ultrametric comparator $P$, the ideal
+recursion returns a feasible ultrametric $U$ with
+\[
+ \E L_2(\mathsf D^0,U)\le O(\alpha^2\log^2 n)L_2(\mathsf D^0,P).
+\]
+The implemented recursion agrees with it except with inverse-polynomial
+probability. All selected births and output heights are integers when
+$\mathsf D^0$ and the initial bounds are integers.
+\end{theorem}
+\begin{proof}
+Project the comparator with the same independently drawn execution
+anchors as the state input. Lemma~\ref{l2:lem:nonexpand} shows that expected
+total comparator error over states at any depth is at most its root
+value. Lemma~\ref{l2:lem:separator} therefore bounds expected total squared
+edit at one depth by $O(\alpha^2)L_2(\mathsf D^0,P)$.
+
+Lift each state to its original pair scope: inside-child pairs, cross
+pairs represented by the contracted atom, and outside pairs are
+disjoint. Mass products are exactly the counts of represented pairs.
+One original pair follows one child scope at each depth. If its successive
+edits are $\Delta_1,\ldots,\Delta_h$, then
+$(\sum_i\Delta_i)^2\le h\sum_i\Delta_i^2$.
+Summing over original pairs and depths gives the $O(\alpha^2h^2)$ bound.
+At termination, substitution of inside trees into contracted leaves
+is feasible because internal heights are at most each birth and
+outside distances are at least that birth. Its final pair values are
+precisely the terminal edited matrix values.
+
+For the failure coupling, run an ideal process that supplies a separator
+meeting the proved bound whenever a certificate search, sketch, random-sign map,
+or cut call fails, and then uses a fresh execution draw. Each repair
+exists by the preceding lemmas. Up to the first such event, the ideal
+and actual processes agree. There are polynomially many calls, each
+with small conditional failure probability, so a union bound couples
+them with inverse-polynomial failure. No argument conditions an
+execution anchor on future subroutine success. Small-state substitutions
+and integer anchor grids preserve integer heights.
+\end{proof}
+
+\begin{theorem}[One trial and amplification]\label{l2:thm:approx}
+With constant probability greater than $3/4$, one complete independent
+trial on $\bar d$ returns $U$ with
+\[
+ L_2(d,U)\le O(\alpha^2\log^4 n)\OPT_2.
+\]
+$K=O(\log n)$ independent trials and the selection rule below amplify
+this to any desired inverse-polynomial failure probability, without
+access to the original input after its scan.
+\end{theorem}
+\begin{proof}
+Fix an optimal original comparator $P$. Conditional on the permutation
+and its implicit $\bar d$, Theorem~\ref{l2:thm:core} applies with this same
+$P$. Its internal randomness is fresh. Lemma~\ref{l2:lem:denoise} gives
+\[
+ \E[\ind[\mathcal E]L_2(\bar d,U)]
+ \le O(\alpha^2\log^2 n)
+        \E[\ind[\mathcal E]L_2(\bar d,P)]
+ \le O(\alpha^2\log^4 n)\OPT_2.
+\]
+Use squared triangle inequality for $d,\bar d,U$ and for $d,P,\bar d$.
+It bounds the corresponding truncated expectation of $L_2(d,U)$ by
+the same order. Markov's inequality with a sufficiently large absolute
+constant, together with the rare complement of $\mathcal E$ and the
+core coupling failure, gives success probability greater than $3/4$.
+For zero optimum, these truncated nonnegative expectations are zero,
+so the statement still holds.
+
+Choose $K$ odd. For outputs $U_1,\ldots,U_K$, evaluate all squared
+distances $\Delta_{ij}=\sum_{x<y}(U_{i,xy}-U_{j,xy})^2$.
+Return the output minimizing the median of its $K$ distances.
+With high probability a strict majority lie within norm distance
+$R=\sqrt{C\alpha^2\log^4 n\,\OPT_2}$ of $d$.
+Every good output has median norm distance at most $2R$, because the norm distance between two good outputs is at most $2R$. The median of squared distances is minimized by exactly the same output as the median of norm distances, since square root is increasing. The selected
+output has at least $(K+1)/2$ outputs within $2R$, one of which must
+be good. Its distance from $d$ is at most $3R$, a factor $9$ in squared
+error. Chernoff's bound supplies the desired high probability.
+No input-cost approximation or second pass is used.
+\end{proof}
+
+\section{Time and space: one algorithm with different batch sizes}
+
+Across a run, retain its compact label trajectories and its output tree.
+Each original matrix query costs $O(\log n)$ on the successful capped
+execution. Equation \eqref{l2:eq:state-input} then takes one such query.
+
+At a state, choose its certificate anchors and form the union of their
+grids. It has $q=\wt O(N)$ heights. Generate the sparse cut graph
+once in $\wt O(N^2)$ time and $\wt O(N)$ space. Keep only the best
+separator seen; each graph has $\wt O(N)$ edges, and there are
+$\wt O(N)$ cut calls. Their total time is $\wt O(N^2)$.
+
+\subsection{Computing threshold features in batches}
+
+Let $\mathcal W\ge n$ be a workspace parameter, with logarithmic
+factors absorbed in the space bound. Batch the sorted trial heights
+into groups of
+\[
+ b=\min\{q,\max(1,\lfloor\mathcal W/N\rfloor)\}
+\]
+heights. One batch's $N\times b\times r$ feature table fits in
+$\wt O(\mathcal W)$ space. It can be computed in one generated-pair
+scan, using constant and slope difference arrays.
+
+For a row $x$ and column $w$, let $z=\mathsf D_{xw}$. Its contribution to
+$V_{\tau,x,j}$ is $s_{w,j}z$ for $\tau<z$ and $s_{w,j}\tau$ for
+$\tau\ge z$. Binary-search the first batch height at least $z$.
+Add its constant contribution before that index and its slope
+contribution from that index onward, in $O(r\log b)$ work.
+Prefix the difference arrays to obtain all batch features in
+$O(Nbr)$ work. Include the diagonal $z=0$ explicitly. Queries within
+the batch are then processed with the same fixed sketches and signs.
+Discard the batch table and proceed to the next batch.
+
+Thus one state needs
+\[
+ \wt O\left(N^2+\frac{N^4}{\mathcal W}+W_X\right)
+ \quad\text{time},\qquad
+ \wt O(\mathcal W+N)\quad\text{space},
+\]
+where $W_X=\mu(X)\le n$. The last work term samples the aggregated
+signs; literal sampling of $W_Xr$ signs suffices and stores only their
+atom sums. No dense pair list or feature table is needed in small space.
+With large workspace, all $q$ heights form one batch.
+
+\subsection{Summing the recursion resources}
+
+The potential $N-1$ is additive across children. At any depth, total
+count over nontrivial states is at most $2(n-1)$, while maximum count
+decreases geometrically apart from constant-depth small states.
+Lemma~\ref{lem:recursion-size} consequently gives
+\[
+ \sum_v N_v^2=O(n^2),\qquad
+ \sum_v N_v^4=O(n^4).
+\]
+There are $O(n)$ states and each has mass at most $n$, so
+$\sum_v W_{X_v}=O(n^2)$. The total core time is
+\begin{equation}\label{l2:eq:tradeoff}
+ \boxed{\wt O(n^2+n^4/\mathcal W)},
+ \qquad\text{working space }\wt O(\mathcal W+n).
+\end{equation}
+After choosing a separator, discard parent working arrays and process
+children depth first. Stored atom lists on the active path and deferred
+siblings have $O(n)$ total size because their counts decrease
+geometrically. Representatives, masses, and releases are the only
+state records retained.
+
+For amplification, all $K$ compact inputs and output trees occupy
+$\wt O(n)$ words. A lowest-common-ancestor data structure for each hierarchy gives a pair
+distance in constant time; alternatively, ancestor searches in logarithmic time preserve the displayed bounds. Scan original vertex pairs, query the $K$
+trees, and accumulate their $K^2$ mutual squared distances. This takes
+$\wt O(n^2)$ time and $\wt O(n)$ space. It does not query the original
+input distances. Processing different trials sequentially preserves
+\eqref{l2:eq:tradeoff}.
+
+\section{Offline and one-pass squared-error guarantees}
+
+\begin{theorem}[Offline and one-pass bounds]\label{l2:thm:models}
+Under the arithmetic convention of Section~\ref{sec:definitions}, using Lemma~\ref{lem:fast-cut}, the offline
+implementation returns the approximation of Theorem~\ref{l2:thm:approx}
+in $\wt O(n^2)$ time and $\wt O(n^2)$ space.
+Its one-pass implementation stores
+$\wt O(n)$ words, takes $\wt O(n^2)$ total stream-update time, and
+$\wt O(n^3)$ postprocessing time, with the same approximation.
+\end{theorem}
+\begin{proof}
+Before reading input, choose the $K$ independent permutations. Maintain
+their record maps and the global maximum $M$ in the same input scan.
+Afterward, derive their label trajectories. All generated state pairs
+come from these trajectories and representatives. The original stream
+is never reread. Offline use $\mathcal W=n^2$; streaming use
+$\mathcal W=n$ in \eqref{l2:eq:tradeoff}. All separator decisions, random
+signs, execution anchors, and output selection are identical; a batch
+partition changes only how their feature values are computed.
+\end{proof}
+
+
+
+\begin{proof}[Proof of Theorem~\ref{thm:four}]
+The combinatorial offline assertion is Theorem~\ref{thm:slow}.
+Both direct-cut $L_1$ assertions are Theorem~\ref{thm:direct-l1};
+the combinatorial one-pass assertion is its polynomial-time instantiation.
+For squared error, Theorems~\ref{l2:thm:approx} and~\ref{l2:thm:models}
+give factor $O(\alpha(n)^2\log^4 n)$, which is $O(\log^8 n)$ for
+$\alpha(n)=O(\log^2 n)$. Taking square roots gives $O(\log^4 n)$
+for the norm error. All displayed space bounds include postprocessing.
+All displayed probabilities include the caps, cut failures, sparsifier
+failures, sign-projection failures, and amplification failures.
+\end{proof}
+
+\begin{thebibliography}{10}
+\small
+\bibitem{Ach03}
+Dimitris Achlioptas.
+Database-friendly random projections: Johnson--Lindenstrauss with binary coins.
+\emph{Journal of Computer and System Sciences} 66(4), 671--687, 2003.
+Theorem 1.1.
+\url{https://doi.org/10.1016/S0022-0000(03)00025-4}
+
+\bibitem{ADK25}
+Daniel Agassy, Dani Dorfman, and Haim Kaplan.
+Expander decomposition for non-uniform vertex measures.
+arXiv:2510.23913, version 2, 2025.
+Theorem 3.2 and the weighted-graph conventions of Section 2.
+\url{https://arxiv.org/abs/2510.23913}
+
+\bibitem{BK15}
+Andr\'as A. Bencz\'ur and David R. Karger.
+Randomized approximation schemes for cuts and flows in capacitated graphs.
+\emph{SIAM Journal on Computing} 44(2), 290--319, 2015.
+Theorems 5.2, 6.2, 6.4--6.5, 8.3, and footnote 2 following Theorem 8.3.
+\url{https://doi.org/10.1137/070705970}
+
+\bibitem{FRT04}
+Jittat Fakcharoenphol, Satish Rao, and Kunal Talwar.
+A tight bound on approximating arbitrary metrics by tree metrics.
+\emph{Journal of Computer and System Sciences} 69(3), 485--497, 2004.
+\url{https://doi.org/10.1016/j.jcss.2004.04.011}
+
+\bibitem{LNPS23}
+Jason Li, Danupon Nanongkai, Debmalya Panigrahi, and Thatchaphol Saranurak.
+Near-linear time approximations for cut problems via fair cuts.
+In \emph{Proceedings of SODA 2023}, 240--275.
+Theorem 1.3.
+\url{https://arxiv.org/abs/2203.00751}
+
+\bibitem{Racke08}
+Harald R\"acke.
+Optimal hierarchical decompositions for congestion minimization in networks.
+In \emph{Proceedings of STOC 2008}, 255--264.
+Theorems 2 and 4, Lemmas 7--9.
+\url{https://doi.org/10.1145/1374376.1374415}
+
+\bibitem{SS11}
+Daniel A. Spielman and Nikhil Srivastava.
+Graph sparsification by effective resistances.
+\emph{SIAM Journal on Computing} 40(6), 1913--1926, 2011.
+Theorem 1.
+\url{https://doi.org/10.1137/080734029}
+
+\bibitem{Tropp12}
+Joel A. Tropp.
+User-friendly tail bounds for sums of random matrices.
+\emph{Foundations of Computational Mathematics} 12, 389--434, 2012.
+Corollary 5.2.
+\url{https://arxiv.org/abs/1004.4389}
+
+\bibitem{ST83}
+Daniel D. Sleator and Robert E. Tarjan.
+A data structure for dynamic trees.
+\emph{Journal of Computer and System Sciences} 26(3), 362--391, 1983.
+\url{https://doi.org/10.1016/0022-0000(83)90006-5}
+\end{thebibliography}
+\end{document}
+
